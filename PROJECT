@@ -1,0 +1,15 @@
+domain: onmetal.de
+layout:
+- go.kubebuilder.io/v3
+projectName: oob-operator
+repo: github.com/onmetal/oob-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: onmetal.de
+  kind: OOB
+  path: github.com/onmetal/oob-operator/api/v1alpha1
+  version: v1alpha1
+version: "3"

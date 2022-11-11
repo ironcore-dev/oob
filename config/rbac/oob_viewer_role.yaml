@@ -1,0 +1,20 @@
+# permissions for end users to view oobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oob-viewer-role
+rules:
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs/status
+  verbs:
+  - get

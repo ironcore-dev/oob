@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs/status
+  verbs:
+  - get
+  - patch
+  - update

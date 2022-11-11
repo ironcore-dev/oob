@@ -1,0 +1,26 @@
+temporaryPassword: "GardenerOnMetal123"
+macPrefixes:
+- macPrefix: "08:94"
+  protocol: Redfish
+  port: 443
+  defaultCredentials:
+  - username: "USERID"
+    password: "GardenerOnMetal123"
+  console:
+    type: SSH-Lenovo
+    port: 22
+- macPrefix: "68"
+  manufacturer: "Sonic"
+  protocol: SSH
+  port: 22
+  tags:
+  - key: uuidSrc
+    value: Serial
+  defaultCredentials:
+  - username: "admin"
+    password: "password"
+ntpServers:
+- 0.de.pool.ntp.org
+- 1.de.pool.ntp.org
+- 2.de.pool.ntp.org
+- 3.de.pool.ntp.org

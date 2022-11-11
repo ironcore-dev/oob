@@ -1,0 +1,24 @@
+# permissions for end users to edit oobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oob-editor-role
+rules:
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - onmetal.de
+  resources:
+  - oobs/status
+  verbs:
+  - get
