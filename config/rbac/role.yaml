@@ -6,6 +6,20 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ipam.onmetal.de
+  resources:
+  - ips
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.onmetal.de
+  resources:
+  - ips/status
+  verbs:
+  - get
+- apiGroups:
   - onmetal.de
   resources:
   - oobs

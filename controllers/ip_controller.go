@@ -34,6 +34,9 @@ import (
 	"github.com/onmetal/oob-operator/log"
 )
 
+//+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips,verbs=get;list;watch
+//+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips/status,verbs=get
+
 // IPReconciler reconciles a IP object.
 type IPReconciler struct {
 	client.Client
