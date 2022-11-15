@@ -88,7 +88,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	// Construct a new OOB
 	var name string
 	if oob == nil {
-		name = fmt.Sprintf("oob-%s", strings.ReplaceAll(mac, ":", "-"))
+		name = fmt.Sprintf("mac-%s", strings.ReplaceAll(mac, ":", "-"))
 	} else {
 		name = oob.Name
 	}

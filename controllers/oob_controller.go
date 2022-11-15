@@ -613,7 +613,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 	ctx = log.WithValues(ctx, "uuid", oob.Spec.UUID)
 
 	// If the name does not match the UUID, replace the BMC with a new BMC with the correct name
-	name := fmt.Sprintf("oob-%s", oob.Spec.UUID)
+	name := oob.Spec.UUID
 	if oob.Name != name {
 		err := r.replaceOOB(ctx, oob, name, creds)
 		if err != nil {
