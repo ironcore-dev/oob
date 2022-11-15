@@ -56,6 +56,7 @@ type OOBReconciler struct {
 //+kubebuilder:rbac:groups=onmetal.de,resources=oobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=onmetal.de,resources=oobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=onmetal.de,resources=oobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 type tag struct {
 	Key   string `yaml:"key"`
