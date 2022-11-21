@@ -60,6 +60,10 @@ func (b *SSHBMC) PowerControl() PowerControl {
 	return nil
 }
 
+func (b *SSHBMC) ResetControl() ResetControl {
+	return nil
+}
+
 func (b *SSHBMC) NTPControl() NTPControl {
 	return nil
 }
