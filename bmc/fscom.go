@@ -58,6 +58,10 @@ func (b *FSCOMBMC) PowerControl() PowerControl {
 	return nil
 }
 
+func (b *FSCOMBMC) ResetControl() ResetControl {
+	return nil
+}
+
 func (b *FSCOMBMC) NTPControl() NTPControl {
 	return nil
 }

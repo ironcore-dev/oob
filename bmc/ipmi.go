@@ -62,6 +62,10 @@ func (b *IPMIBMC) PowerControl() PowerControl {
 	return b
 }
 
+func (b *IPMIBMC) ResetControl() ResetControl {
+	return b
+}
+
 func (b *IPMIBMC) NTPControl() NTPControl {
 	return nil
 }

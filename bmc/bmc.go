@@ -36,6 +36,7 @@ type BMC interface {
 	ReadInfo(ctx context.Context) (Info, error)
 	LEDControl() LEDControl
 	PowerControl() PowerControl
+	ResetControl() ResetControl
 	NTPControl() NTPControl
 }
 
@@ -45,8 +46,11 @@ type LEDControl interface {
 
 type PowerControl interface {
 	PowerOn(ctx context.Context) error
-	Reset(ctx context.Context, immediate bool) error
 	PowerOff(ctx context.Context, immediate bool) error
+}
+
+type ResetControl interface {
+	Reset(ctx context.Context, immediate bool) error
 }
 
 type NTPControl interface {

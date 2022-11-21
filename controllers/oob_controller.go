@@ -222,6 +222,35 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 		return ctrl.Result{}, err
 	}
 
+	// Apply anu reset request
+	err = r.applyReset(ctx, oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Apply any changes to the OOB status
+	if statusChanged {
+		oobStatus := &oobv1alpha1.OOB{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: oobv1alpha1.GroupVersion.String(),
+				Kind:       "OOB",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: oob.Namespace,
+				Name:      oob.Name,
+			},
+			Status: oob.Status,
+		}
+
+		// Apply the OOB
+		log.Info(ctx, "Applying OOB status")
+		err = r.Status().Patch(ctx, oobStatus, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
+		}
+		oob.Status = oobStatus.Status
+	}
+
 	// Apply any changes to the OOB spec
 	if specChanged {
 		oobSpec := &oobv1alpha1.OOB{
@@ -247,29 +276,6 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
 		}
 		oob = oobSpec
-	}
-
-	// Apply any changes to the OOB spec
-	if statusChanged {
-		oobStatus := &oobv1alpha1.OOB{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: oobv1alpha1.GroupVersion.String(),
-				Kind:       "OOB",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: oob.Namespace,
-				Name:      oob.Name,
-			},
-			Status: oob.Status,
-		}
-
-		// Apply the OOB
-		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oobStatus, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
-		}
-		oob = oobStatus
 	}
 
 	log.Debug(ctx, "Reconciled successfully")
@@ -766,7 +772,7 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 
 	now := metav1.Now()
 
-	// If the machine is Off, clear OS status and all deadlines.
+	// If the machine is Off, clear OS status and all deadlines
 	if info.Power == "Off" {
 		if oob.Status.OS != "" {
 			oob.Status.OS = ""
@@ -783,7 +789,7 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 		return statusChanged
 	}
 
-	// If the OS is Ok, clear OS read deadline.
+	// If the OS is Ok, clear OS read deadline
 	if info.OS == "Ok" {
 		if oob.Status.OS != "Ok" {
 			oob.Status.OS = "Ok"
@@ -796,7 +802,7 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 		return statusChanged
 	}
 
-	// If there is a deadline and it has expired, set OS to TimedOut and clear the deadline.
+	// If there is a deadline and it has expired, set OS to TimedOut and clear the deadline
 	if !oob.Status.OSReadDeadline.IsZero() && oob.Status.OSReadDeadline.Before(&now) {
 		if oob.Status.OS != "TimedOut" {
 			oob.Status.OS = "TimedOut"
@@ -805,7 +811,16 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 		return true
 	}
 
-	// Set OS to Waiting and set a deadline.
+	// If the OS has timed out, clear the deadline
+	if oob.Status.OS == "TimedOut" {
+		if oob.Status.OSReadDeadline != nil {
+			oob.Status.OSReadDeadline = nil
+			statusChanged = true
+		}
+		return statusChanged
+	}
+
+	// Set OS to Waiting and set a deadline
 	if oob.Status.OS != "Waiting" {
 		oob.Status.OS = "Waiting"
 		statusChanged = true
@@ -814,6 +829,8 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 		oob.Status.OSReadDeadline = &metav1.Time{Time: now.Add(7 * time.Minute)}
 		statusChanged = true
 	}
+
+	// Reconcile again after a short time to update the status
 	*requeueAfter = time.Second * 3
 
 	return statusChanged
@@ -821,7 +838,7 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 
 func (r *OOBReconciler) applyLocatorLED(ctx context.Context, oob *oobv1alpha1.OOB, bmctrl bmc.BMC, specChanged, statusChanged *bool) error {
 	// If no change is requested or necessary, return
-	if oob.Spec.LocatorLED == "" || oob.Spec.LocatorLED == oob.Status.LocatorLED {
+	if oob.Spec.LocatorLED == "" || oob.Spec.LocatorLED == "None" || oob.Spec.LocatorLED == oob.Status.LocatorLED {
 		return nil
 	}
 
@@ -846,8 +863,8 @@ func (r *OOBReconciler) applyLocatorLED(ctx context.Context, oob *oobv1alpha1.OO
 }
 
 func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bmctrl bmc.BMC, specChanged, statusChanged *bool, requeueAfter *time.Duration) error {
-	// If no change is requested or necessary, return
-	if oob.Spec.Power == "" || oob.Spec.Power == oob.Status.Power {
+	// If no change is requested, return
+	if oob.Spec.Power == "" || oob.Spec.Power == "None" {
 		return nil
 	}
 
@@ -873,72 +890,33 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 			// On -> On: noop
 
 		case "Off":
-			// Off -> On: turn the machine on and reconcile again after a short time to update the status
+			// Off -> On: turn the machine on
 			err := pc.PowerOn(ctx)
 			if err != nil {
 				return fmt.Errorf("cannot power on machine: %w", err)
 			}
+
+			// Clear the shutdown deadline because the machine is not shutting down
+			if oob.Status.ShutdownDeadline != nil {
+				oob.Status.ShutdownDeadline = nil
+				*statusChanged = true
+			}
+
+			// Reset OS status and the OS read deadline
+			if oob.Status.OS != "" {
+				oob.Status.OS = ""
+				*statusChanged = true
+			}
+			if oob.Status.OSReadDeadline != nil {
+				oob.Status.OSReadDeadline = nil
+				*statusChanged = true
+			}
+
+			// Reconcile again after a short time to update the status
 			*requeueAfter = time.Second * 3
 
 		default:
 			return fmt.Errorf("unsupported current power state %s", oob.Status.Power)
-		}
-
-		// Clear the shutdown deadline because the machine is not shutting down
-		if oob.Status.ShutdownDeadline != nil {
-			oob.Status.ShutdownDeadline = nil
-			*statusChanged = true
-		}
-
-	case "Reset":
-		switch oob.Status.Power {
-		case "On":
-			// On -> Reset: reset the machine and set it to on because there is no way to monitor a reset
-			err := pc.Reset(ctx, false)
-			if err != nil {
-				return fmt.Errorf("cannot reset machine: %w", err)
-			}
-			oob.Spec.Power = "On"
-
-		case "Off":
-			// Off -> Reset: set the machine to off because resetting it is a noop
-			oob.Spec.Power = "Off"
-
-		default:
-			return fmt.Errorf("unsupported current power state %s", oob.Status.Power)
-		}
-		*specChanged = true
-
-		// Clear the shutdown deadline because the machine is not shutting down
-		if oob.Status.ShutdownDeadline != nil {
-			oob.Status.ShutdownDeadline = nil
-			*statusChanged = true
-		}
-
-	case "ResetImmediate":
-		switch oob.Status.Power {
-
-		case "On":
-			// On -> ResetImmediate: reset the machine forcefully and set it to on because there is no way to monitor a reset
-			err := pc.Reset(ctx, true)
-			if err != nil {
-				return fmt.Errorf("cannot reset machine: %w", err)
-			}
-			oob.Spec.Power = "On"
-
-		case "Off":
-			// Off -> ResetImmediate: set the machine to off because resetting it is a noop
-			oob.Spec.Power = "Off"
-
-		default:
-			return fmt.Errorf("unsupported current power state %s", oob.Status.Power)
-		}
-		*specChanged = true
-
-		// Clear the shutdown deadline because the machine is not shutting down
-		if oob.Status.ShutdownDeadline != nil {
-			oob.Status.ShutdownDeadline = nil
-			*statusChanged = true
 		}
 
 	case "Off":
@@ -978,6 +956,12 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 			return fmt.Errorf("unsupported requested power state %s", oob.Spec.Power)
 		}
 
+		// Clear any Reset
+		if oob.Spec.Reset != "" {
+			oob.Spec.Reset = "None"
+			*specChanged = true
+		}
+
 	case "OffImmediate":
 		switch oob.Status.Power {
 		case "On":
@@ -1004,9 +988,84 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 			*statusChanged = true
 		}
 
+		// Clear any Reset
+		if oob.Spec.Reset != "" {
+			oob.Spec.Reset = "None"
+			*specChanged = true
+		}
+
 	default:
 		return fmt.Errorf("unsupported power state %s", oob.Spec.Power)
 	}
+
+	return nil
+}
+
+func (r *OOBReconciler) applyReset(ctx context.Context, oob *oobv1alpha1.OOB, bmctrl bmc.BMC, specChanged, statusChanged *bool, requeueAfter *time.Duration) error {
+	// If no change is requested, return
+	if oob.Spec.Reset == "" || oob.Spec.Reset == "None" {
+		return nil
+	}
+
+	// If power control is not supported, clear the request
+	rc := bmctrl.ResetControl()
+	if rc == nil {
+		log.Info(ctx, "Reset control is not supported")
+		oob.Spec.Reset = "None"
+		*specChanged = true
+		return nil
+	}
+
+	// If the machine is not on, clear the request and do nothing
+	if oob.Status.Power != "On" {
+		oob.Spec.Reset = "None"
+		*specChanged = true
+		return nil
+	}
+
+	// If a reset is requested, the action depends on both the request and the current power state
+	switch oob.Spec.Reset {
+
+	case "Reset":
+		// Reset the machine
+		err := rc.Reset(ctx, false)
+		if err != nil {
+			return fmt.Errorf("cannot reset machine: %w", err)
+		}
+
+	case "ResetImmediate":
+		// Reset the machine forcefully
+		err := rc.Reset(ctx, true)
+		if err != nil {
+			return fmt.Errorf("cannot reset machine: %w", err)
+		}
+
+	default:
+		return fmt.Errorf("unsupported reset state %s", oob.Spec.Reset)
+	}
+
+	// Clear the reset
+	oob.Spec.Reset = "None"
+	*specChanged = true
+
+	// Clear the shutdown deadline
+	if oob.Status.ShutdownDeadline != nil {
+		oob.Status.ShutdownDeadline = nil
+		*statusChanged = true
+	}
+
+	// Reset OS status and the OS read deadline
+	if oob.Status.OS != "" {
+		oob.Status.OS = ""
+		*statusChanged = true
+	}
+	if oob.Status.OSReadDeadline != nil {
+		oob.Status.OSReadDeadline = nil
+		*statusChanged = true
+	}
+
+	// Reconcile again after a short time to update the status
+	*requeueAfter = time.Second * 3
 
 	return nil
 }

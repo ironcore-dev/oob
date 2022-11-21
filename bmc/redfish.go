@@ -72,6 +72,10 @@ func (b *RedfishBMC) PowerControl() PowerControl {
 	return b
 }
 
+func (b *RedfishBMC) ResetControl() ResetControl {
+	return b
+}
+
 func (b *RedfishBMC) NTPControl() NTPControl {
 	return b
 }
