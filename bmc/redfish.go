@@ -84,8 +84,13 @@ func (b *RedfishBMC) Credentials() Credentials {
 	return b.creds
 }
 
+func (b *RedfishBMC) Capabilities() Capabilities {
+	return b
+}
+
 var (
-	userIdRegex = regexp.MustCompile(`/redfish/v1/AccountService/Accounts/([0-9]{1,2})`)
+	userIdRegex        = regexp.MustCompile(`/redfish/v1/AccountService/Accounts/([0-9]{1,2})`)
+	redfishCapabilties = []string{"credentials", "power", "led"}
 )
 
 type redfishUser struct {
@@ -802,4 +807,8 @@ func (b *RedfishBMC) DeleteUsers(ctx context.Context, regex *regexp.Regexp) erro
 func (b *RedfishBMC) SetNTPServers(_ context.Context, _ []string) error {
 	// TODO: implement NTP
 	return nil
+}
+
+func (b *RedfishBMC) GetCapabilities(_ context.Context) ([]string, error) {
+	return redfishCapabilties, nil
 }

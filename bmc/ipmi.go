@@ -74,6 +74,14 @@ func (b *IPMIBMC) Credentials() Credentials {
 	return b.creds
 }
 
+func (b *IPMIBMC) Capabilities() Capabilities {
+	return b
+}
+
+var (
+	ipmiCapabilties = []string{"credentials", "power", "led"}
+)
+
 type IPMIBMC struct {
 	tags  map[string]string
 	host  string
@@ -407,4 +415,8 @@ func (b *IPMIBMC) PowerOff(ctx context.Context, immediate bool) error {
 	}
 
 	return nil
+}
+
+func (b *IPMIBMC) GetCapabilities(_ context.Context) ([]string, error) {
+	return ipmiCapabilties, nil
 }

@@ -38,6 +38,7 @@ type BMC interface {
 	PowerControl() PowerControl
 	ResetControl() ResetControl
 	NTPControl() NTPControl
+	Capabilities() Capabilities
 }
 
 type LEDControl interface {
@@ -55,6 +56,10 @@ type ResetControl interface {
 
 type NTPControl interface {
 	SetNTPServers(ctx context.Context, ntpServers []string) error
+}
+
+type Capabilities interface {
+	GetCapabilities(ctx context.Context) ([]string, error)
 }
 
 type newBMCFunc func(tags map[string]string, host string, port int, creds Credentials) BMC
