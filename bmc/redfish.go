@@ -142,8 +142,15 @@ func redfishFindWorkingCredentials(ctx context.Context, host string, port int, d
 	for _, creds := range defaultCreds {
 		c, err := redfishConnect(ctx, host, port, creds)
 		if err == nil {
-			c.Logout()
-			return creds, "", nil
+			// TODO: optimize this
+			// try now to get service accounts
+			_, err := c.Service.AccountService()
+			if err == nil {
+				c.Logout()
+				return creds, "", nil
+			} else if errors.As(err, &rerr) && rerr.HTTPReturnedStatusCode == 403 {
+				return creds, redfishGetUserIdFromError(rerr), nil
+			}
 		} else if errors.As(err, &rerr) && rerr.HTTPReturnedStatusCode == 403 {
 			return creds, redfishGetUserIdFromError(rerr), nil
 		}
