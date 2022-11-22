@@ -110,7 +110,13 @@ func sshConnect(ctx context.Context, host string, port int, creds Credentials) (
 		port = 22
 	}
 
-	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), sshConfig)
+	hostAndPort := ""
+	if strings.Contains(host, ":") {
+		hostAndPort = fmt.Sprintf("[%s]:%d", host, port)
+	} else {
+		hostAndPort = fmt.Sprintf("%s:%d", host, port)
+	}
+	client, err := ssh.Dial("tcp", hostAndPort, sshConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect: %w", err)
 	}
