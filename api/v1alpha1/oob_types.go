@@ -122,6 +122,12 @@ type OOBStatus struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 }
 
+// +kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="UUID",priority=10
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.spec.ip`,description="IP"
+// +kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer"
+// +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type"
+// +kubebuilder:printcolumn:name="POWER",type=string,JSONPath=`.status.power`,description="Power State"
+// +kubebuilder:printcolumn:name="LED",type=string,JSONPath=`.status.locatorLED`,description="LocatorLED"
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -134,8 +140,7 @@ type OOB struct {
 	Status OOBStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-
+// +kubebuilder:object:root=true
 // OOBList contains a list of OOB
 type OOBList struct {
 	metav1.TypeMeta `json:",inline"`

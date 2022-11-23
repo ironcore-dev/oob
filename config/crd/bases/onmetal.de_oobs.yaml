@@ -15,7 +15,33 @@ spec:
     singular: oob
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: UUID
+      jsonPath: .status.uuid
+      name: UUID
+      priority: 10
+      type: string
+    - description: IP
+      jsonPath: .spec.ip
+      name: IP
+      type: string
+    - description: Manufacturer
+      jsonPath: .status.manufacturer
+      name: MANUFACTURER
+      type: string
+    - description: Type
+      jsonPath: .status.type
+      name: TYPE
+      type: string
+    - description: Power State
+      jsonPath: .status.power
+      name: POWER
+      type: string
+    - description: LocatorLED
+      jsonPath: .status.locatorLED
+      name: LED
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: OOB is the Schema for the oobs API
