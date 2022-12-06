@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/strings/slices"
 	"os"
 	"regexp"
 	"time"
@@ -30,6 +29,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -70,7 +70,7 @@ type accessInfo struct {
 	Port               int               `yaml:"port"`
 	DefaultCredentials []bmc.Credentials `yaml:"defaultCredentials"`
 	UUIDSource         string            `yaml:"uuidSource"`
-	OOBType            string            `yaml:"type"`
+	Type               string            `yaml:"type"`
 }
 
 type prefixMap map[string]accessInfo
@@ -87,20 +87,6 @@ func (m prefixMap) getAccessInfo(mac string) accessInfo {
 		}
 	}
 	return accessInfo{}
-}
-
-func (m prefixMap) getType(mac string) string {
-	for i := len(mac); i > 0; i-- {
-		if mac[i-1] == ':' {
-			continue
-		}
-		prefix := mac[:i]
-		l, ok := m[prefix]
-		if ok {
-			return l.OOBType
-		}
-	}
-	return ""
 }
 
 // LoadMACPrefixes loads MAC address prefixes from a file.
@@ -224,14 +210,8 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	requeueAfter := time.Hour * 24
 
 	// Set all status fields
-	statusChanged := r.setStatusFields(oob, &info, &requeueAfter)
-
-	// TODO: maybe merge with setStatusFields
-	// Set capabilities
-	err = r.setCapabilities(ctx, oob, bmctrl, &statusChanged)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
+	oobType := r.macPrefixes.getAccessInfo(oob.Spec.Mac).Type // FIXME - do not access access info after object creation
+	statusChanged := r.setStatusFields(oob, oobType, &info, &requeueAfter)
 
 	// Apply any changes to the locator LED
 	err = r.applyLocatorLED(ctx, oob, bmctrl, &specChanged, &statusChanged)
@@ -443,9 +423,6 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 					Tags:               oob.Spec.Tags,
 					Port:               oob.Spec.Port,
 					PasswordExpiration: oob.Spec.PasswordExpiration,
-				},
-				Status: oobv1alpha1.OOBStatus{
-					Type: oob.Status.Type,
 				},
 			}
 
@@ -777,18 +754,13 @@ func (r *OOBReconciler) setNTPServers(ctx context.Context, bmctrl bmc.BMC) error
 	return nil
 }
 
-func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, requeueAfter *time.Duration) bool {
+func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, oobType string, info *bmc.Info, requeueAfter *time.Duration) bool {
 	statusChanged := false
 
-	// Set the type
-	oobType := r.macPrefixes.getType(oob.Spec.Mac)
-	if oob.Status.Type != oobType {
-		oob.Status.Type = oobType
-		statusChanged = true
-	}
-
 	// Fill in all non-modifiable fields
-	if oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU {
+	if oob.Status.Type != oobType || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU {
+		oob.Status.Type = oobType
+		oob.Status.Capabilities = info.Capabilities
 		oob.Status.Manufacturer = info.Manufacturer
 		oob.Status.SKU = info.SKU
 		oob.Status.SerialNumber = info.SerialNumber
@@ -1031,22 +1003,6 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 		return fmt.Errorf("unsupported power state %s", oob.Spec.Power)
 	}
 
-	return nil
-}
-func (r *OOBReconciler) setCapabilities(ctx context.Context, oob *oobv1alpha1.OOB, bmctrl bmc.BMC, statusChanged *bool) error {
-	c := bmctrl.Capabilities()
-	if c == nil {
-		log.Info(ctx, "Getting capabilities is not supported")
-		return nil
-	}
-	caps, err := c.GetCapabilities(ctx)
-	if err != nil {
-		return fmt.Errorf("cannot get capablities: %w", err)
-	}
-	if !slices.Equal(caps, oob.Status.Capabilities) {
-		oob.Status.Capabilities = caps
-		*statusChanged = true
-	}
 	return nil
 }
 

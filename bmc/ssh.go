@@ -72,10 +72,6 @@ func (b *SSHBMC) Credentials() Credentials {
 	return b.creds
 }
 
-func (b *SSHBMC) Capabilities() Capabilities {
-	return b
-}
-
 type SSHBMC struct {
 	tags  map[string]string
 	host  string
@@ -96,7 +92,6 @@ var fields = map[string]string{
 }
 
 var namespaceForUUID = "onmetal.de"
-var sshCapabilities = []string{"credentials"}
 
 func sshConnect(ctx context.Context, host string, port int, creds Credentials) (*ssh.Client, error) {
 	log.Debug(ctx, "Connecting via SSH", "host", host, "user", creds.Username)
@@ -244,6 +239,7 @@ func (b *SSHBMC) ReadInfo(ctx context.Context) (Info, error) {
 
 	return Info{
 		UUID:         ruuid,
+		Capabilities: []string{"credentials"},
 		SerialNumber: serial,
 		SKU:          info[fields["SKU"]],
 		Manufacturer: info[fields["Manufacturer"]],
@@ -334,8 +330,4 @@ func (b *SSHBMC) DeleteUsers(ctx context.Context, regex *regexp.Regexp) error {
 	}
 
 	return nil
-}
-
-func (b *SSHBMC) GetCapabilities(_ context.Context) ([]string, error) {
-	return sshCapabilities, nil
 }

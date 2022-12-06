@@ -82,6 +82,13 @@ type OOBStatus struct {
 
 	//+optional
 	//+kubebuilder:validation:MinLength=1
+	Type string `json:"type,omitempty"`
+
+	//+optional
+	Capabilities []string `json:"capabilities,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:MinLength=1
 	Manufacturer string `json:"manufacturer,omitempty"`
 
 	//+optional
@@ -113,23 +120,16 @@ type OOBStatus struct {
 
 	//+optional
 	OSReadDeadline *metav1.Time `json:"osReadDeadline,omitempty"`
-
-	//+optional
-	//+kubebuilder:validation:MinLength=1
-	Type string `json:"type,omitempty"`
-
-	//+optional
-	Capabilities []string `json:"capabilities,omitempty"`
 }
 
-// +kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="UUID",priority=10
-// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.spec.ip`,description="IP"
-// +kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer"
-// +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type"
-// +kubebuilder:printcolumn:name="POWER",type=string,JSONPath=`.status.power`,description="Power State"
-// +kubebuilder:printcolumn:name="LED",type=string,JSONPath=`.status.locatorLED`,description="LocatorLED"
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="UUID",priority=10
+//+kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.spec.ip`,description="IP"
+//+kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer"
+//+kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type"
+//+kubebuilder:printcolumn:name="POWER",type=string,JSONPath=`.status.power`,description="Power State"
+//+kubebuilder:printcolumn:name="LED",type=string,JSONPath=`.status.locatorLED`,description="Locator LED"
 
 // OOB is the Schema for the oobs API
 type OOB struct {
@@ -140,7 +140,8 @@ type OOB struct {
 	Status OOBStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
+
 // OOBList contains a list of OOB
 type OOBList struct {
 	metav1.TypeMeta `json:",inline"`

@@ -70,17 +70,12 @@ func (b *FSCOMBMC) Credentials() Credentials {
 	return b.creds
 }
 
-func (b *FSCOMBMC) Capabilities() Capabilities {
-	return b
-}
-
 var (
-	errRegex          = regexp.MustCompile(`^%.+$`)
-	promptRegex       = regexp.MustCompile(`[0-9a-zA-Z-]+#$`)
-	promptconfRegex   = regexp.MustCompile(`[0-9a-zA-Z-]+\(config\)#$`)
-	serialRegex       = regexp.MustCompile(`^\s+Serial Number\s+:\s+(?P<Serial>[A-Z0-9]+)$`)
-	userRegex         = regexp.MustCompile(`^([a-zA-Z0-9-]+)\s+[0-9]{1,2}$`)
-	fscomCapabilities = []string{"credentials"}
+	errRegex        = regexp.MustCompile(`^%.+$`)
+	promptRegex     = regexp.MustCompile(`[0-9a-zA-Z-]+#$`)
+	promptconfRegex = regexp.MustCompile(`[0-9a-zA-Z-]+\(config\)#$`)
+	serialRegex     = regexp.MustCompile(`^\s+Serial Number\s+:\s+(?P<Serial>[A-Z0-9]+)$`)
+	userRegex       = regexp.MustCompile(`^([a-zA-Z0-9-]+)\s+[0-9]{1,2}$`)
 )
 
 type FSCOMBMC struct {
@@ -173,6 +168,7 @@ func (b *FSCOMBMC) ReadInfo(ctx context.Context) (Info, error) {
 
 	return Info{
 		UUID:         ruuid,
+		Capabilities: []string{"credentials"},
 		SerialNumber: serial,
 		Manufacturer: "FSCOM",
 		Power:        "On",
@@ -253,8 +249,4 @@ func (b *FSCOMBMC) DeleteUsers(ctx context.Context, regex *regexp.Regexp) error 
 		}
 	}
 	return nil
-}
-
-func (b *FSCOMBMC) GetCapabilities(_ context.Context) ([]string, error) {
-	return fscomCapabilities, nil
 }
