@@ -21,7 +21,6 @@ import (
 )
 
 //TODO: Remove UUID from the spec
-//TODO: Separate Reset from Power
 //TODO: Move password expiration to status
 
 // OOBSpec defines the desired state of OOB
