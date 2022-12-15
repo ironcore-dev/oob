@@ -20,38 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-//TODO: Remove UUID from the spec
-//TODO: Move password expiration to status
-
 // OOBSpec defines the desired state of OOB
 type OOBSpec struct {
-	//+optional
-	//+kubebuilder:validation:Pattern=`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
-	UUID string `json:"uuid,omitempty"`
-
-	//+optional
-	//+kubebuilder:validation:MinLength=1
-	Protocol string `json:"protocol,omitempty"`
-
-	//+optional
-	Tags []TagSpec `json:"tags,omitempty"`
-
-	//+optional
-	//+kubebuilder:validation:Pattern=`((^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$))`
-	IP string `json:"ip,omitempty"`
-
-	//+optional
-	//+kubebuilder:validation:Minimum=0
-	//+kubebuilder:validation:Maximum=65536
-	Port int `json:"port,omitempty"`
-
-	//+optional
-	PasswordExpiration *metav1.Time `json:"passwordExpiration,omitempty"`
-
-	//+optional
-	//+kubebuilder:validation:Pattern=`^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$`
-	Mac string `json:"mac,omitempty"`
-
 	//+optional
 	//+kubebuilder:validation:Pattern=`^(?:None|On|Off|Blinking)$`
 	LocatorLED string `json:"locatorLED,omitempty"`
@@ -78,6 +48,29 @@ type OOBStatus struct {
 	//+optional
 	//+kubebuilder:validation:Pattern=`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`
 	UUID string `json:"uuid,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:Pattern=`^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$`
+	Mac string `json:"mac,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:Pattern=`((^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$)|(^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$))`
+	IP string `json:"ip,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:MinLength=1
+	Protocol string `json:"protocol,omitempty"`
+
+	//+optional
+	Tags []TagSpec `json:"tags,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:Minimum=0
+	//+kubebuilder:validation:Maximum=65536
+	Port int `json:"port,omitempty"`
+
+	//+optional
+	PasswordExpiration *metav1.Time `json:"passwordExpiration,omitempty"`
 
 	//+optional
 	//+kubebuilder:validation:MinLength=1
