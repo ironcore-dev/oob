@@ -119,6 +119,9 @@ type OOBStatus struct {
 
 	//+optional
 	OSReadDeadline *metav1.Time `json:"osReadDeadline,omitempty"`
+
+	//+optional
+	Console string `json:"console,omitempty"`
 }
 
 //+kubebuilder:object:root=true

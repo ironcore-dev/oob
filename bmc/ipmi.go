@@ -201,14 +201,16 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	//led, ok := info["Chassis Identify State"]
 	led := "Unknown"
 
+	//TODO: properly detect if sol is supported
 	return Info{
 		UUID:         uuid,
-		Capabilities: []string{"credentials", "power", "led"},
+		Capabilities: []string{"credentials", "power", "led", "console"},
 		SerialNumber: serial,
 		SKU:          sku,
 		Manufacturer: manufacturer,
 		LocatorLED:   led,
 		Power:        cases.Title(language.English).String(powerstate),
+		Console:      "ipmi",
 	}, nil
 }
 

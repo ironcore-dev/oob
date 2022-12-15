@@ -37,7 +37,7 @@ spec:
       jsonPath: .status.power
       name: POWER
       type: string
-    - description: LocatorLED
+    - description: Locator LED
       jsonPath: .status.locatorLED
       name: LED
       type: string
@@ -108,6 +108,8 @@ spec:
                 items:
                   type: string
                 type: array
+              console:
+                type: string
               locatorLED:
                 pattern: ^(?:On|Off|Blinking)$
                 type: string

@@ -91,6 +91,7 @@ type Info struct {
 	Power        string
 	OS           string
 	OSReason     string
+	Console      string
 }
 
 func must(ctx context.Context, err error) {

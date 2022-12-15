@@ -647,17 +647,45 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 		}
 	}
 
+	manufacturer := chassis[0].Manufacturer
+	capabilities := []string{"credentials", "power", "led"}
+	console := ""
+
+	mgr, err := c.Service.Managers()
+	if len(mgr) > 0 {
+		consoleList := mgr[0].SerialConsole.ConnectTypesSupported
+		if mgr[0].SerialConsole.ServiceEnabled {
+			if strings.ToLower(manufacturer) == "lenovo" && isConsoleTypeSupported(consoleList, redfish.SSHSerialConnectTypesSupported) {
+				capabilities = append(capabilities, "console")
+				console = "ssh-lenovo"
+			} else if isConsoleTypeSupported(consoleList, redfish.IPMISerialConnectTypesSupported) {
+				capabilities = append(capabilities, "console")
+				console = "ipmi"
+			}
+		}
+	}
+
 	return Info{
 		UUID:         uuid,
-		Capabilities: []string{"credentials", "power", "led"},
+		Capabilities: capabilities,
 		SerialNumber: chassis[0].SerialNumber,
 		SKU:          chassis[0].SKU,
-		Manufacturer: chassis[0].Manufacturer,
+		Manufacturer: manufacturer,
 		LocatorLED:   led,
 		Power:        fmt.Sprintf("%v", chassis[0].PowerState),
 		OS:           os,
 		OSReason:     osReason,
+		Console:      console,
 	}, nil
+}
+
+func isConsoleTypeSupported(consoleList []redfish.SerialConnectTypesSupported, console redfish.SerialConnectTypesSupported) bool {
+	for _, sc := range consoleList {
+		if sc == console {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *RedfishBMC) SetLocatorLED(ctx context.Context, state string) (string, error) {

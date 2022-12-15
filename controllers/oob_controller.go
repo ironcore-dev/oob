@@ -758,12 +758,13 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, oobType string, in
 	statusChanged := false
 
 	// Fill in all non-modifiable fields
-	if oob.Status.Type != oobType || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU {
+	if oob.Status.Type != oobType || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU || oob.Status.Console != info.Console {
 		oob.Status.Type = oobType
 		oob.Status.Capabilities = info.Capabilities
 		oob.Status.Manufacturer = info.Manufacturer
 		oob.Status.SKU = info.SKU
 		oob.Status.SerialNumber = info.SerialNumber
+		oob.Status.Console = info.Console
 		statusChanged = true
 	}
 
