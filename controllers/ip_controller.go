@@ -79,40 +79,55 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	}
 
 	// Do nothing if the IP is already correct
-	if oob != nil && oob.Spec.IP == ip.Spec.IP.String() {
+	if oob != nil && oob.Status.IP == ip.Spec.IP.String() {
 		log.Debug(ctx, "OOB exists and has the same IP, doing nothing")
 		log.Debug(ctx, "Reconciled successfully")
 		return ctrl.Result{}, nil
 	}
 
-	// Construct a new OOB
-	var name string
+	// Create a new OOB if necessary
 	if oob == nil {
-		name = fmt.Sprintf("mac-%s", strings.ReplaceAll(mac, ":", "-"))
-	} else {
-		name = oob.Name
+		oob = &oobv1alpha1.OOB{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: oobv1alpha1.GroupVersion.String(),
+				Kind:       "OOB",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ip.Namespace,
+				Name:      fmt.Sprintf("mac-%s", strings.ReplaceAll(mac, ":", "-")),
+			},
+		}
+
+		// Apply the OOB
+		log.Info(ctx, "Applying OOB")
+		err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
+		}
 	}
+	ctx = log.WithValues(ctx, "oob", oob.Name)
+
+	// Create a status patch
 	oob = &oobv1alpha1.OOB{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: oobv1alpha1.GroupVersion.String(),
 			Kind:       "OOB",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ip.Namespace,
-			Name:      name,
+			Namespace: oob.Namespace,
+			Name:      oob.Name,
 		},
-		Spec: oobv1alpha1.OOBSpec{
+		Status: oobv1alpha1.OOBStatus{
 			IP:  ip.Spec.IP.String(),
 			Mac: mac,
 		},
 	}
-	ctx = log.WithValues(ctx, "oob", oob.Name)
 
-	// Apply the OOB
+	// Apply the OOB status
 	log.Info(ctx, "Applying OOB")
-	err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
+	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
+		return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 	}
 
 	log.Debug(ctx, "Reconciled successfully")
@@ -120,9 +135,9 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 }
 
 func (r *IPReconciler) findUniqueOOBByMac(ctx context.Context, namespace, mac string) (*oobv1alpha1.OOB, error) {
-	// Get all BMCs with a given MAC
+	// Get all OOBss with a given MAC
 	var oobs oobv1alpha1.OOBList
-	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".spec.mac": mac})
+	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".status.mac": mac})
 	if err != nil {
 		return nil, fmt.Errorf("cannot list existing OOBs with MAC %s: %w", mac, err)
 	}
@@ -130,7 +145,7 @@ func (r *IPReconciler) findUniqueOOBByMac(ctx context.Context, namespace, mac st
 		return nil, nil
 	}
 
-	// If any BMCs are found, delete all but the newest
+	// If any OOBs are found, delete all but the newest
 	newest := 0
 	if len(oobs.Items) > 1 {
 		del := make([]int, 0, len(oobs.Items)-1)
@@ -158,12 +173,12 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.macRegex = regexp.MustCompile(`^[0-9A-Fa-f]{12}$`)
 	r.Client = mgr.GetClient()
 
-	err := mgr.GetFieldIndexer().IndexField(context.Background(), &oobv1alpha1.OOB{}, ".spec.mac", func(obj client.Object) []string {
+	err := mgr.GetFieldIndexer().IndexField(context.Background(), &oobv1alpha1.OOB{}, ".status.mac", func(obj client.Object) []string {
 		oob := obj.(*oobv1alpha1.OOB)
-		if oob.Spec.Mac == "" {
+		if oob.Status.Mac == "" {
 			return nil
 		}
-		return []string{oob.Spec.Mac}
+		return []string{oob.Status.Mac}
 	})
 	if err != nil {
 		return err
@@ -187,5 +202,5 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
 }
