@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -69,7 +68,6 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	if !r.macRegex.MatchString(mac) {
 		return ctrl.Result{}, fmt.Errorf("invalid MAC address: %s", mac)
 	}
-	mac = fmt.Sprintf("%s:%s:%s:%s:%s:%s", mac[:2], mac[2:4], mac[4:6], mac[6:8], mac[8:10], mac[10:])
 	ctx = log.WithValues(ctx, "mac", mac)
 
 	// Find an existing OOB if there is one
@@ -94,7 +92,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ip.Namespace,
-				Name:      fmt.Sprintf("mac-%s", strings.ReplaceAll(mac, ":", "-")),
+				Name:      fmt.Sprintf("mac-%s", mac),
 			},
 		}
 
