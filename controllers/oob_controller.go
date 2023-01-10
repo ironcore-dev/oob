@@ -190,7 +190,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	}
 
 	// Ensure that the OOB has the correct name and UUID
-	updated, err = r.ensureCorrectUUIDandName(ctx, oob, info.UUID, bmctrl.Credentials())
+	updated, err = r.ensureCorrectUUIDandName(ctx, oob, info.UUID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -463,30 +463,37 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 }
 
 func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.Credentials, error) {
+	if oob.Status.Mac == "" {
+		return bmc.Credentials{}, fmt.Errorf("OOB has no MAC address")
+	}
+
 	// Get the secret
 	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: oob.Namespace, Name: oob.Name}, secret)
+	err := r.Get(ctx, types.NamespacedName{Namespace: oob.Namespace, Name: oob.Status.Mac}, secret)
 	if err != nil {
 		return bmc.Credentials{}, fmt.Errorf("cannot get credentials secret: %w", err)
 	}
 
 	// Verify the secret and extract the credentials from it
-	return r.getCredentialsFromSecret(secret, oob.UID, oob.APIVersion, oob.Kind, oob.Name)
+	return r.getCredentialsFromSecret(secret, oob.Status.Mac)
 }
 
-func (r *OOBReconciler) getCredentialsFromSecret(secret *corev1.Secret, uid types.UID, apiVersion, kind, name string) (bmc.Credentials, error) {
-	// Validate owner reference
-	err := validateOwnerReference(secret, uid, apiVersion, kind, name)
-	if err != nil {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret has invalid owner reference: %w", err)
-	}
-
+func (r *OOBReconciler) getCredentialsFromSecret(secret *corev1.Secret, expectedMac string) (bmc.Credentials, error) {
 	// Get credentials from secret
 	if secret.Type != "kubernetes.io/basic-auth" {
 		return bmc.Credentials{}, fmt.Errorf("credentials secret has incorrect type: %s", secret.Type)
 	}
-	var username, passwd []byte
+
+	// Extract and verify fields
+	var mac, username, passwd []byte
 	var ok bool
+	mac, ok = secret.Data["mac"]
+	if !ok {
+		return bmc.Credentials{}, fmt.Errorf("credentials secret does not contain a MAC address")
+	}
+	if string(mac) != expectedMac {
+		return bmc.Credentials{}, fmt.Errorf("credentials secret has an unexpected MAC address: %s", mac)
+	}
 	username, ok = secret.Data["username"]
 	if !ok {
 		return bmc.Credentials{}, fmt.Errorf("credentials secret does not contain a username")
@@ -564,6 +571,10 @@ func (r *OOBReconciler) createCredentials(ctx context.Context, bmctrl bmc.BMC) (
 }
 
 func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1.OOB, creds bmc.Credentials) error {
+	if oob.Status.Mac == "" {
+		return fmt.Errorf("OOB has no MAC address")
+	}
+
 	// Construct a new secret
 	secret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
@@ -571,21 +582,12 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      oob.Name,
+			Name:      oob.Status.Mac,
 			Namespace: oob.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         oob.APIVersion,
-					Kind:               oob.Kind,
-					Name:               oob.Name,
-					UID:                oob.UID,
-					Controller:         &(&struct{ x bool }{true}).x,
-					BlockOwnerDeletion: &(&struct{ x bool }{true}).x,
-				},
-			},
 		},
 		Type: "kubernetes.io/basic-auth",
 		StringData: map[string]string{
+			"mac":      oob.Status.Mac,
 			"username": creds.Username,
 			"password": creds.Password,
 		},
@@ -601,7 +603,7 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 	return nil
 }
 
-func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1alpha1.OOB, uuid string, creds bmc.Credentials) (bool, error) {
+func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1alpha1.OOB, uuid string) (bool, error) {
 	// If the UUID changed, remove any preexisting BMCs with the same UUID
 	if oob.Status.UUID != uuid {
 		if oob.Status.UUID != "" {
@@ -640,7 +642,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 	// If the name does not match the UUID, replace the BMC with a new BMC with the correct name
 	name := oob.Status.UUID
 	if oob.Name != name {
-		err := r.replaceOOB(ctx, oob, name, creds)
+		err := r.replaceOOB(ctx, oob, name)
 		if err != nil {
 			return false, fmt.Errorf("cannot replace OOB: %w", err)
 		}
@@ -673,15 +675,15 @@ func (r *OOBReconciler) deleteOtherOOBsWithUuid(ctx context.Context, namespace, 
 	return nil
 }
 
-func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, name string, creds bmc.Credentials) error {
-	// Delete the obsolete BMC, this will also delete any associated secret
+func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, name string) error {
+	// Delete the obsolete BMC
 	log.Info(ctx, "Deleting OOB")
 	err := r.Delete(ctx, oob)
 	if err != nil {
 		return fmt.Errorf("cannot delete OOB: %w", err)
 	}
 
-	// Construct a new OOB that a new secret can point to
+	// Construct a new OOB
 	// The oob-ignore annotation prevents reconciling
 	oobRepl := &oobv1alpha1.OOB{
 		TypeMeta: metav1.TypeMeta{
@@ -702,12 +704,6 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB: %w", err)
-	}
-
-	// Create a new secret attached to the new OOB
-	err = r.persistCredentials(ctx, oobRepl, creds)
-	if err != nil {
-		return fmt.Errorf("cannot create or update secret: %w", err)
 	}
 
 	// Create a status patch

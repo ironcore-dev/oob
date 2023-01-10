@@ -87,7 +87,7 @@ spec:
                 pattern: ^(?:On|Off|Blinking)$
                 type: string
               mac:
-                pattern: ^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$
+                pattern: ^[0-9a-f]{12}$
                 type: string
               manufacturer:
                 minLength: 1

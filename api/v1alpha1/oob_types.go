@@ -50,7 +50,7 @@ type OOBStatus struct {
 	UUID string `json:"uuid,omitempty"`
 
 	//+optional
-	//+kubebuilder:validation:Pattern=`^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$`
+	//+kubebuilder:validation:Pattern=`^[0-9a-f]{12}$`
 	Mac string `json:"mac,omitempty"`
 
 	//+optional

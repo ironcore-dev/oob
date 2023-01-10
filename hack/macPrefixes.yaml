@@ -1,6 +1,6 @@
 temporaryPassword: "GardenerOnMetal123"
 macPrefixes:
-- macPrefix: "08:94"
+- macPrefix: "0894"
   protocol: Redfish
   type: bmc
   port: 443
