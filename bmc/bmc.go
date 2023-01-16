@@ -28,10 +28,10 @@ import (
 type BMC interface {
 	Type() string
 	Tags() map[string]string
-	Credentials() Credentials
+	Credentials() (Credentials, time.Time)
 	EnsureInitialCredentials(ctx context.Context, defaultCreds []Credentials, tempPassword string) error
 	Connect(ctx context.Context) error
-	CreateUser(ctx context.Context, creds Credentials, tempPassword string) (time.Time, error)
+	CreateUser(ctx context.Context, creds Credentials, tempPassword string) error
 	DeleteUsers(ctx context.Context, regex *regexp.Regexp) error
 	ReadInfo(ctx context.Context) (Info, error)
 	LEDControl() LEDControl
@@ -57,23 +57,23 @@ type NTPControl interface {
 	SetNTPServers(ctx context.Context, ntpServers []string) error
 }
 
-type newBMCFunc func(tags map[string]string, host string, port int, creds Credentials) BMC
+type newBMCFunc func(tags map[string]string, host string, port int, creds Credentials, exp time.Time) BMC
 
 var (
 	bmcs = make(map[string]newBMCFunc)
 )
 
 func registerBMC(newFunc newBMCFunc) {
-	bmcs[newFunc(nil, "", 0, Credentials{}).Type()] = newFunc
+	bmcs[newFunc(nil, "", 0, Credentials{}, time.Time{}).Type()] = newFunc
 }
 
-func NewBMC(typ string, tags map[string]string, host string, port int, creds Credentials) (BMC, error) {
+func NewBMC(typ string, tags map[string]string, host string, port int, creds Credentials, exp time.Time) (BMC, error) {
 	newFunc, ok := bmcs[typ]
 	if !ok {
 		return nil, fmt.Errorf("BMC of type %s is not supported", typ)
 	}
 
-	return newFunc(tags, host, port, creds), nil
+	return newFunc(tags, host, port, creds, exp), nil
 }
 
 type Credentials struct {

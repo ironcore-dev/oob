@@ -70,9 +70,6 @@ type OOBStatus struct {
 	Port int `json:"port,omitempty"`
 
 	//+optional
-	PasswordExpiration *metav1.Time `json:"passwordExpiration,omitempty"`
-
-	//+optional
 	//+kubebuilder:validation:MinLength=1
 	Type string `json:"type,omitempty"`
 

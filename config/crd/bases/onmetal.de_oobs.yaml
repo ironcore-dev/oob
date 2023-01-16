@@ -101,9 +101,6 @@ spec:
               osReason:
                 minLength: 1
                 type: string
-              passwordExpiration:
-                format: date-time
-                type: string
               port:
                 maximum: 65536
                 minimum: 0
