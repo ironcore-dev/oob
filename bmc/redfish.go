@@ -40,12 +40,13 @@ func init() {
 	registerBMC(redfishBMC)
 }
 
-func redfishBMC(tags map[string]string, host string, port int, creds Credentials) BMC {
+func redfishBMC(tags map[string]string, host string, port int, creds Credentials, exp time.Time) BMC {
 	return &RedfishBMC{
 		tags:  tags,
 		host:  host,
 		port:  port,
 		creds: creds,
+		exp:   exp,
 	}
 }
 
@@ -54,6 +55,7 @@ type RedfishBMC struct {
 	host  string
 	port  int
 	creds Credentials
+	exp   time.Time
 }
 
 func (b *RedfishBMC) Type() string {
@@ -80,8 +82,8 @@ func (b *RedfishBMC) NTPControl() NTPControl {
 	return b
 }
 
-func (b *RedfishBMC) Credentials() Credentials {
-	return b.creds
+func (b *RedfishBMC) Credentials() (Credentials, time.Time) {
+	return b.creds, b.exp
 }
 
 var (
@@ -501,20 +503,20 @@ func redfishGetPasswordExpirationRaw(ctx context.Context, host string, port int,
 //	return time.Time{}, nil
 //}
 
-func (b *RedfishBMC) CreateUser(ctx context.Context, creds Credentials, tempPassword string) (time.Time, error) {
+func (b *RedfishBMC) CreateUser(ctx context.Context, creds Credentials, tempPassword string) error {
 	c, err := redfishConnect(ctx, b.host, b.port, b.creds)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot connect: %w", err)
+		return fmt.Errorf("cannot connect: %w", err)
 	}
 	defer c.Logout()
 
 	accounts, err := redfishGetAccounts(c)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot generate the list of accounts: %w", err)
+		return fmt.Errorf("cannot generate the list of accounts: %w", err)
 	}
 
 	if redfishGetUserID(accounts, creds.Username) != "" {
-		return time.Time{}, fmt.Errorf("user %s already exists", creds.Username)
+		return fmt.Errorf("user %s already exists", creds.Username)
 	}
 
 	id, err := redfishCreateUserPost(ctx, c, Credentials{creds.Username, creds.Password})
@@ -525,13 +527,13 @@ func (b *RedfishBMC) CreateUser(ctx context.Context, creds Credentials, tempPass
 		slot, err := redfishGetFreeID(accounts)
 		if err != nil {
 			merr = multierror.Append(merr, err)
-			return time.Time{}, fmt.Errorf("cannot create user with a POST request or get a free id: %w", merr)
+			return fmt.Errorf("cannot create user with a POST request or get a free id: %w", merr)
 		}
 
 		id, err = redfishCreateUserPatch(ctx, c, slot, Credentials{creds.Username, creds.Password})
 		if err != nil {
 			merr = multierror.Append(merr, err)
-			return time.Time{}, fmt.Errorf("cannot create user with a POST request or with a PATCH request: %w", merr)
+			return fmt.Errorf("cannot create user with a POST request or with a PATCH request: %w", merr)
 		}
 	}
 
@@ -539,26 +541,26 @@ func (b *RedfishBMC) CreateUser(ctx context.Context, creds Credentials, tempPass
 	if err != nil {
 		var merr error
 		merr = multierror.Append(merr, err)
-		return time.Time{}, fmt.Errorf("created user is not available: %w", merr)
+		return fmt.Errorf("created user is not available: %w", merr)
 	}
 
 	if pwChangeID != "" {
 		err := redfishChangePasswordRaw(ctx, b.host, b.port, pwChangeID, creds.Username, creds.Password, tempPassword)
 		if err != nil {
-			return time.Time{}, fmt.Errorf("cannot change password for user %s: %w", creds.Username, err)
+			return fmt.Errorf("cannot change password for user %s: %w", creds.Username, err)
 		}
 
 		creds.Password = tempPassword
 	}
 
-	b.creds = creds
-
 	exp, err := redfishGetPasswordExpirationRaw(ctx, b.host, b.port, creds, id)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot determine password expiration: %w", err)
+		return fmt.Errorf("cannot determine password expiration: %w", err)
 	}
 
-	return exp, nil
+	b.creds = creds
+	b.exp = exp
+	return nil
 }
 
 func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {

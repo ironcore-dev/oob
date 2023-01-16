@@ -37,12 +37,13 @@ func init() {
 	registerBMC(ipmiBMC)
 }
 
-func ipmiBMC(tags map[string]string, host string, port int, creds Credentials) BMC {
+func ipmiBMC(tags map[string]string, host string, port int, creds Credentials, exp time.Time) BMC {
 	return &IPMIBMC{
 		tags:  tags,
 		host:  host,
 		port:  port,
 		creds: creds,
+		exp:   exp,
 	}
 }
 
@@ -70,8 +71,8 @@ func (b *IPMIBMC) NTPControl() NTPControl {
 	return nil
 }
 
-func (b *IPMIBMC) Credentials() Credentials {
-	return b.creds
+func (b *IPMIBMC) Credentials() (Credentials, time.Time) {
+	return b.creds, b.exp
 }
 
 type IPMIBMC struct {
@@ -79,6 +80,7 @@ type IPMIBMC struct {
 	host  string
 	port  int
 	creds Credentials
+	exp   time.Time
 }
 
 type IPMIUser struct {
@@ -322,33 +324,32 @@ func ipmiGetFreeSlot(ctx context.Context, host string, port int, creds Credentia
 	return "", fmt.Errorf("no empty slot available")
 
 }
-func (b *IPMIBMC) CreateUser(ctx context.Context, creds Credentials, _ string) (time.Time, error) {
+func (b *IPMIBMC) CreateUser(ctx context.Context, creds Credentials, _ string) error {
 	log.Debug(ctx, "Creating user", "host", b.host, "user", creds.Username)
 	slot, err := ipmiGetFreeSlot(ctx, b.host, b.port, b.creds)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot create a new user: %w", err)
+		return fmt.Errorf("cannot create a new user: %w", err)
 	}
 	_, stderr, err := ipmiExecuteCommand(ctx, b.host, b.port, b.creds, "ipmitool", "user", "set", "name", slot, creds.Username)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot rename user: %s, %w", stderr, err)
+		return fmt.Errorf("cannot rename user: %s, %w", stderr, err)
 	}
 	_, stderr, err = ipmiExecuteCommand(ctx, b.host, b.port, b.creds, "ipmitool", "user", "set", "password", slot, creds.Password)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot set user password: %s, %w", stderr, err)
+		return fmt.Errorf("cannot set user password: %s, %w", stderr, err)
 	}
 	_, stderr, err = ipmiExecuteCommand(ctx, b.host, b.port, b.creds, "ipmitool", "channel", "setaccess", "1", slot, "link=on", "callin=on", "privilege=4")
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot set user privileges: %s, %w", stderr, err)
+		return fmt.Errorf("cannot set user privileges: %s, %w", stderr, err)
 	}
 	_, stderr, err = ipmiExecuteCommand(ctx, b.host, b.port, b.creds, "ipmitool", "user", "enable", slot)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot enable user: %s, %w", stderr, err)
+		return fmt.Errorf("cannot enable user: %s, %w", stderr, err)
 	}
 
 	b.creds = creds
-
-	t := time.Now()
-	return t.AddDate(0, 0, 30), nil
+	b.exp = time.Now().AddDate(0, 0, 30)
+	return nil
 }
 
 func (b *IPMIBMC) DeleteUsers(ctx context.Context, regex *regexp.Regexp) error {

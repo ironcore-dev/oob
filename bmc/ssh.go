@@ -35,12 +35,13 @@ func init() {
 	registerBMC(sshBMC)
 }
 
-func sshBMC(tags map[string]string, host string, port int, creds Credentials) BMC {
+func sshBMC(tags map[string]string, host string, port int, creds Credentials, exp time.Time) BMC {
 	return &SSHBMC{
 		tags:  tags,
 		host:  host,
 		port:  port,
 		creds: creds,
+		exp:   exp,
 	}
 }
 
@@ -68,8 +69,8 @@ func (b *SSHBMC) NTPControl() NTPControl {
 	return nil
 }
 
-func (b *SSHBMC) Credentials() Credentials {
-	return b.creds
+func (b *SSHBMC) Credentials() (Credentials, time.Time) {
+	return b.creds, b.exp
 }
 
 type SSHBMC struct {
@@ -77,6 +78,7 @@ type SSHBMC struct {
 	host  string
 	port  int
 	creds Credentials
+	exp   time.Time
 }
 
 var sshscript = `for i in $(find /sys/class/dmi/id/ -type f); do 
@@ -254,26 +256,25 @@ func sshUserAddCommand(user string) string {
 	return fmt.Sprintf(`%s && %s && %s`, useradd, usermod, chage)
 }
 
-func (b *SSHBMC) CreateUser(ctx context.Context, creds Credentials, _ string) (time.Time, error) {
+func (b *SSHBMC) CreateUser(ctx context.Context, creds Credentials, _ string) error {
 	client, err := sshConnect(ctx, b.host, b.port, b.creds)
 	if err != nil {
-		return time.Time{}, err
+		return err
 	}
 
 	_, err = sshRunCommand(ctx, client, sshUserAddCommand(creds.Username))
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot add username %s on host %s: %w", creds.Username, b.host, err)
+		return fmt.Errorf("cannot add username %s on host %s: %w", creds.Username, b.host, err)
 	}
 
 	err = sshChangePassword(ctx, b.host, b.port, b.creds, creds)
 	if err != nil {
-		return time.Time{}, err
+		return err
 	}
 
 	b.creds = creds
-
-	t := time.Now()
-	return t.AddDate(0, 0, 30), nil
+	b.exp = time.Now().AddDate(0, 0, 30)
+	return nil
 }
 
 func sshChangePassword(ctx context.Context, host string, port int, creds, newCreds Credentials) error {

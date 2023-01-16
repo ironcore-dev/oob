@@ -107,10 +107,6 @@ func (in *OOBStatus) DeepCopyInto(out *OOBStatus) {
 		*out = make([]TagSpec, len(*in))
 		copy(*out, *in)
 	}
-	if in.PasswordExpiration != nil {
-		in, out := &in.PasswordExpiration, &out.PasswordExpiration
-		*out = (*in).DeepCopy()
-	}
 	if in.Capabilities != nil {
 		in, out := &in.Capabilities, &out.Capabilities
 		*out = make([]string, len(*in))

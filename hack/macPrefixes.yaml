@@ -5,21 +5,9 @@ macPrefixes:
   type: bmc
   port: 443
   defaultCredentials:
-  - username: "USERID"
-    password: "GardenerOnMetal123"
-  console:
-    type: SSH-Lenovo
-    port: 22
-- macPrefix: "68"
-  manufacturer: "Sonic"
-  protocol: SSH
-  port: 22
-  tags:
-  - key: uuidSrc
-    value: Serial
-  defaultCredentials:
-  - username: "admin"
-    password: "password"
+  - username: USERID
+    password: GardenerOnMetal123
+  console: SSH-Lenovo
 ntpServers:
 - 0.de.pool.ntp.org
 - 1.de.pool.ntp.org

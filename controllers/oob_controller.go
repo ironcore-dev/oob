@@ -346,11 +346,12 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 
 func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.BMC, bool, error) {
 	// Read the credentials secret if one exists
-	creds, err := r.getCredentials(ctx, oob)
+	creds, exp, err := r.getCredentials(ctx, oob)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, false, fmt.Errorf("cannot get credentials: %w", err)
 	}
 	expireCreds := false
+	statusChanged := false
 
 	// If the type is unknown, attempt to determine it
 	if oob.Status.Protocol == "" {
@@ -363,6 +364,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 		oob.Status.Tags = r.tagsToK8s(ai.Tags)
 		oob.Status.Port = ai.Port
 		expireCreds = true
+		statusChanged = true
 	}
 	ctx = log.WithValues(ctx, "proto", oob.Status.Protocol)
 
@@ -373,7 +375,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 		return nil, false, fmt.Errorf("cannot parse OOB tags: %w", err)
 	}
 	var bmctrl bmc.BMC
-	bmctrl, err = bmc.NewBMC(oob.Status.Protocol, tags, oob.Status.IP, oob.Status.Port, creds)
+	bmctrl, err = bmc.NewBMC(oob.Status.Protocol, tags, oob.Status.IP, oob.Status.Port, creds, exp)
 	if err != nil {
 		return nil, false, fmt.Errorf("cannot initialize BMC: %w", err)
 	}
@@ -397,56 +399,55 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	// If the type had to be determined or the credentials created, expire the credentials to get fresh ones
 	now := time.Now()
 	if expireCreds {
-		oob.Status.PasswordExpiration = &metav1.Time{Time: now}
+		exp = now
 	}
 
 	// If the credentials have expired (or are initial) create a new set of credentials
-	if !oob.Status.PasswordExpiration.IsZero() {
-		timeToRenew := oob.Status.PasswordExpiration.Add(-r.CredentialsExpBuffer)
+	if !exp.IsZero() {
+		timeToRenew := exp.Add(-r.CredentialsExpBuffer)
 		if timeToRenew.Before(now) {
-			log.Info(ctx, "Creating new credentials", "expired", oob.Status.PasswordExpiration)
+			log.Info(ctx, "Creating new credentials", "expired", exp)
 
 			// Create new credentials
-			var exp time.Time
-			exp, err = r.createCredentials(ctx, bmctrl)
+			err = r.createCredentials(ctx, bmctrl)
 			if err != nil {
 				return nil, false, fmt.Errorf("cannot create new credentials: %w", err)
 			}
-			oob.Status.PasswordExpiration = nil
+			creds, exp = bmctrl.Credentials()
 			if !exp.IsZero() {
-				oob.Status.PasswordExpiration = &metav1.Time{Time: exp}
-				ctx = log.WithValues(ctx, "expiration", oob.Status.PasswordExpiration)
+				ctx = log.WithValues(ctx, "expiration", exp)
 			}
 
 			// Persist the new credentials in case any upcoming operations fail
-			err = r.persistCredentials(ctx, oob, bmctrl.Credentials())
+			err = r.persistCredentials(ctx, oob, creds, exp)
 			if err != nil {
 				return nil, false, fmt.Errorf("cannot persist BMC credentials: %w", err)
 			}
 
-			// Construct a new OOB
-			oob = &oobv1alpha1.OOB{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: oobv1alpha1.GroupVersion.String(),
-					Kind:       "OOB",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: oob.Namespace,
-					Name:      oob.Name,
-				},
-				Status: oobv1alpha1.OOBStatus{
-					Protocol:           oob.Status.Protocol,
-					Tags:               oob.Status.Tags,
-					Port:               oob.Status.Port,
-					PasswordExpiration: oob.Status.PasswordExpiration,
-				},
-			}
+			if statusChanged {
+				// Construct a new OOB
+				oob = &oobv1alpha1.OOB{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: oobv1alpha1.GroupVersion.String(),
+						Kind:       "OOB",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: oob.Namespace,
+						Name:      oob.Name,
+					},
+					Status: oobv1alpha1.OOBStatus{
+						Protocol: oob.Status.Protocol,
+						Tags:     oob.Status.Tags,
+						Port:     oob.Status.Port,
+					},
+				}
 
-			// Apply the OOB
-			log.Info(ctx, "Applying OOB status")
-			err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/creds"), client.ForceOwnership)
-			if err != nil {
-				return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
+				// Apply the OOB
+				log.Info(ctx, "Applying OOB status")
+				err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), client.ForceOwnership)
+				if err != nil {
+					return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
+				}
 			}
 
 			// Delete obsolete credentials
@@ -462,48 +463,51 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	return bmctrl, false, nil
 }
 
-func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.Credentials, error) {
+func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.Credentials, time.Time, error) {
 	if oob.Status.Mac == "" {
-		return bmc.Credentials{}, fmt.Errorf("OOB has no MAC address")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("OOB has no MAC address")
 	}
 
 	// Get the secret
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: oob.Namespace, Name: oob.Status.Mac}, secret)
 	if err != nil {
-		return bmc.Credentials{}, fmt.Errorf("cannot get credentials secret: %w", err)
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("cannot get credentials secret: %w", err)
 	}
 
-	// Verify the secret and extract the credentials from it
-	return r.getCredentialsFromSecret(secret, oob.Status.Mac)
-}
-
-func (r *OOBReconciler) getCredentialsFromSecret(secret *corev1.Secret, expectedMac string) (bmc.Credentials, error) {
-	// Get credentials from secret
+	// Validate the secret
 	if secret.Type != "kubernetes.io/basic-auth" {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret has incorrect type: %s", secret.Type)
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has incorrect type: %s", secret.Type)
 	}
 
 	// Extract and verify fields
-	var mac, username, passwd []byte
+	var mac, username, passwd, expStr []byte
 	var ok bool
 	mac, ok = secret.Data["mac"]
 	if !ok {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret does not contain a MAC address")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a MAC address")
 	}
-	if string(mac) != expectedMac {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret has an unexpected MAC address: %s", mac)
+	if string(mac) != oob.Status.Mac {
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has an unexpected MAC address: %s", mac)
 	}
 	username, ok = secret.Data["username"]
 	if !ok {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret does not contain a username")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a username")
 	}
 	passwd, ok = secret.Data["password"]
 	if !ok {
-		return bmc.Credentials{}, fmt.Errorf("credentials secret does not contain a password")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a password")
+	}
+	exp := time.Time{}
+	expStr, ok = secret.Data["expiration"]
+	if ok {
+		err = exp.UnmarshalText(expStr)
+		if err != nil {
+			return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret contains an invalid expiration time: %w", err)
+		}
 	}
 
-	return bmc.Credentials{Username: string(username), Password: string(passwd)}, nil
+	return bmc.Credentials{Username: string(username), Password: string(passwd)}, exp, nil
 }
 
 func (r *OOBReconciler) tagMapFromK8s(tags []oobv1alpha1.TagSpec) (map[string]string, error) {
@@ -538,39 +542,38 @@ func (r *OOBReconciler) tagMapFromTags(tags []tag) (map[string]string, error) {
 	return tmap, nil
 }
 
-func (r *OOBReconciler) createCredentials(ctx context.Context, bmctrl bmc.BMC) (time.Time, error) {
+func (r *OOBReconciler) createCredentials(ctx context.Context, bmctrl bmc.BMC) error {
 	var creds bmc.Credentials
 	var err error
 
 	// Generate credentials
 	creds.Username, err = password.Generate(6, 0, 0, true, false)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot generate a random user: %w", err)
+		return fmt.Errorf("cannot generate a random user: %w", err)
 	}
 	creds.Username = r.usernamePrefix + creds.Username
 	creds.Password, err = password.Generate(16, 4, 0, false, false)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot generate a random password: %w", err)
+		return fmt.Errorf("cannot generate a random password: %w", err)
 	}
 
 	// Generate a second password to be used in case of a password change requirement
 	var anotherPassword string
 	anotherPassword, err = password.Generate(16, 4, 0, false, false)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot generate a random password: %w", err)
+		return fmt.Errorf("cannot generate a random password: %w", err)
 	}
 
 	// Use the existing credentials to create a new user with a new password
-	var exp time.Time
-	exp, err = bmctrl.CreateUser(ctx, creds, anotherPassword)
+	err = bmctrl.CreateUser(ctx, creds, anotherPassword)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot create user: %w", err)
+		return fmt.Errorf("cannot create user: %w", err)
 	}
 
-	return exp, nil
+	return nil
 }
 
-func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1.OOB, creds bmc.Credentials) error {
+func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1.OOB, creds bmc.Credentials, exp time.Time) error {
 	if oob.Status.Mac == "" {
 		return fmt.Errorf("OOB has no MAC address")
 	}
@@ -591,6 +594,13 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 			"username": creds.Username,
 			"password": creds.Password,
 		},
+	}
+	if !exp.IsZero() {
+		expStr, err := exp.MarshalText()
+		if err != nil {
+			return fmt.Errorf("cannot marshal expiration time: %w", err)
+		}
+		secret.StringData["expiration"] = string(expStr)
 	}
 
 	// Apply the secret

@@ -33,12 +33,13 @@ func init() {
 	registerBMC(fscomBMC)
 }
 
-func fscomBMC(tags map[string]string, host string, port int, creds Credentials) BMC {
+func fscomBMC(tags map[string]string, host string, port int, creds Credentials, exp time.Time) BMC {
 	return &FSCOMBMC{
 		tags:  tags,
 		host:  host,
 		port:  port,
 		creds: creds,
+		exp:   exp,
 	}
 }
 
@@ -66,8 +67,8 @@ func (b *FSCOMBMC) NTPControl() NTPControl {
 	return nil
 }
 
-func (b *FSCOMBMC) Credentials() Credentials {
-	return b.creds
+func (b *FSCOMBMC) Credentials() (Credentials, time.Time) {
+	return b.creds, b.exp
 }
 
 var (
@@ -83,6 +84,7 @@ type FSCOMBMC struct {
 	host  string
 	port  int
 	creds Credentials
+	exp   time.Time
 }
 
 func getoutputfromcommand(e *expect.GExpect, command string, promt *regexp.Regexp, timeout time.Duration) (string, error) {
@@ -175,36 +177,37 @@ func (b *FSCOMBMC) ReadInfo(ctx context.Context) (Info, error) {
 	}, nil
 }
 
-func (b *FSCOMBMC) CreateUser(ctx context.Context, creds Credentials, _ string) (time.Time, error) {
+func (b *FSCOMBMC) CreateUser(ctx context.Context, creds Credentials, _ string) error {
 	client, err := sshConnect(ctx, b.host, b.port, b.creds)
 	if err != nil {
-		return time.Time{}, err
+		return err
 	}
 
 	timeout := 2 * time.Second
 	e, _, err := expect.SpawnSSH(client, timeout, expect.Verbose(false), expect.PartialMatch(true))
 	if err != nil {
-		return time.Time{}, fmt.Errorf("can't spawn SSH client")
+		return fmt.Errorf("can't spawn SSH client")
 	}
 	defer func() { must(ctx, e.Close()) }()
 
 	_, err = getoutputfromcommand(e, "configure terminal", promptconfRegex, timeout)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot set the switch to configure mode: %w", err)
+		return fmt.Errorf("cannot set the switch to configure mode: %w", err)
 	}
 	add := "username " + creds.Username + " password 0 " + creds.Password + "\n" + "username " + creds.Username + " privilege 15\n"
 	_, err = getoutputfromcommand(e, add, promptconfRegex, timeout)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot create user: %w", err)
+		return fmt.Errorf("cannot create user: %w", err)
 	}
 
 	_, err = sshConnect(ctx, b.host, b.port, creds)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("cannot verify credentials after creating user")
+		return fmt.Errorf("cannot verify credentials after creating user")
 	}
+
 	b.creds = creds
-	t := time.Now()
-	return t.AddDate(0, 0, 30), nil
+	b.exp = time.Now().AddDate(0, 0, 30)
+	return nil
 }
 
 func (b *FSCOMBMC) DeleteUsers(ctx context.Context, regex *regexp.Regexp) error {
