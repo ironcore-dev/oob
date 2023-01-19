@@ -241,6 +241,7 @@ func (b *SSHBMC) ReadInfo(ctx context.Context) (Info, error) {
 
 	return Info{
 		UUID:         ruuid,
+		Type:         "",
 		Capabilities: []string{"credentials"},
 		SerialNumber: serial,
 		SKU:          info[fields["SKU"]],

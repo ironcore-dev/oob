@@ -170,6 +170,7 @@ func (b *FSCOMBMC) ReadInfo(ctx context.Context) (Info, error) {
 
 	return Info{
 		UUID:         ruuid,
+		Type:         "Switch",
 		Capabilities: []string{"credentials"},
 		SerialNumber: serial,
 		Manufacturer: "FSCOM",

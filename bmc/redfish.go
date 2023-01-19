@@ -669,6 +669,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 
 	return Info{
 		UUID:         uuid,
+		Type:         "BMC",
 		Capabilities: capabilities,
 		SerialNumber: chassis[0].SerialNumber,
 		SKU:          chassis[0].SKU,

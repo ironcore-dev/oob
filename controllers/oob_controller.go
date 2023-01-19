@@ -70,7 +70,6 @@ type accessInfo struct {
 	Port               int               `yaml:"port"`
 	DefaultCredentials []bmc.Credentials `yaml:"defaultCredentials"`
 	UUIDSource         string            `yaml:"uuidSource"`
-	Type               string            `yaml:"type"`
 }
 
 type prefixMap map[string]accessInfo
@@ -210,8 +209,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	specChanged := false
 
 	// Set all status fields
-	oobType := r.macPrefixes.getAccessInfo(oob.Status.Mac).Type // FIXME - do not access access info after object creation
-	statusChanged := r.setStatusFields(oob, oobType, &info, &requeueAfter)
+	statusChanged := r.setStatusFields(oob, &info, &requeueAfter)
 
 	// Apply any changes to the locator LED
 	err = r.applyLocatorLED(ctx, oob, bmctrl, &specChanged, &statusChanged)
@@ -791,12 +789,12 @@ func (r *OOBReconciler) setNTPServers(ctx context.Context, bmctrl bmc.BMC) error
 	return nil
 }
 
-func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, oobType string, info *bmc.Info, requeueAfter *time.Duration) bool {
+func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, requeueAfter *time.Duration) bool {
 	statusChanged := false
 
 	// Fill in all non-modifiable fields
-	if oob.Status.Type != oobType || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU || oob.Status.Console != info.Console {
-		oob.Status.Type = oobType
+	if oob.Status.Type != info.Type || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU || oob.Status.Console != info.Console {
+		oob.Status.Type = info.Type
 		oob.Status.Capabilities = info.Capabilities
 		oob.Status.Manufacturer = info.Manufacturer
 		oob.Status.SKU = info.SKU

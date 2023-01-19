@@ -83,6 +83,7 @@ type Credentials struct {
 
 type Info struct {
 	UUID         string
+	Type         string
 	Capabilities []string
 	SerialNumber string
 	SKU          string

@@ -206,6 +206,7 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	//TODO: properly detect if sol is supported
 	return Info{
 		UUID:         uuid,
+		Type:         "BMC",
 		Capabilities: []string{"credentials", "power", "led", "console"},
 		SerialNumber: serial,
 		SKU:          sku,
