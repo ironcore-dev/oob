@@ -1,0 +1,26 @@
+version: 2
+updates:
+
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 20
+    reviewers:
+      - 5kt
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 20
+    reviewers:
+      - 5kt
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 20
+    reviewers:
+      - 5kt
