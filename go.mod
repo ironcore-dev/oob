@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/go-logr/zerologr v1.2.2
 	github.com/google/goexpect v0.0.0-20210430020637-ab937bf7fd6f
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onmetal/ipam v0.0.14
 	github.com/rs/zerolog v1.28.0
