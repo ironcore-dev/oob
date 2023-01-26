@@ -207,7 +207,7 @@ func (b *FSCOMBMC) CreateUser(ctx context.Context, creds Credentials, _ string) 
 	}
 
 	b.creds = creds
-	b.exp = time.Now().AddDate(0, 0, 30)
+	b.exp = time.Time{}
 	return nil
 }
 
