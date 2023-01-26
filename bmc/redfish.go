@@ -623,6 +623,9 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 	if len(systems) > 0 {
 		sys := systems[0]
 		sysRaw, err := c.Get(sys.ODataID)
+		if err != nil {
+			return Info{}, fmt.Errorf("cannot get systems (raw): %w", err)
+		}
 		osStatus := struct {
 			OEM struct {
 				Lenovo struct {
@@ -654,6 +657,9 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 	console := ""
 
 	mgr, err := c.Service.Managers()
+	if err != nil {
+		return Info{}, fmt.Errorf("cannot get managers: %w", err)
+	}
 	if len(mgr) > 0 {
 		consoleList := mgr[0].SerialConsole.ConnectTypesSupported
 		if mgr[0].SerialConsole.ServiceEnabled {

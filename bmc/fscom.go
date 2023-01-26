@@ -140,12 +140,12 @@ func (b *FSCOMBMC) ReadInfo(ctx context.Context) (Info, error) {
 	}
 	defer func() { must(ctx, e.Close()) }()
 
-	res, _, err := e.Expect(promptRegex, timeout)
+	_, _, err = e.Expect(promptRegex, timeout)
 	if err != nil {
 		return Info{}, fmt.Errorf("cannot read machine info: %w", err)
 	}
 
-	res, err = getoutputfromcommand(e, "show version", promptRegex, timeout)
+	res, err := getoutputfromcommand(e, "show version", promptRegex, timeout)
 	if err != nil {
 		return Info{}, fmt.Errorf("cannot execute command show version: %w", err)
 	}
