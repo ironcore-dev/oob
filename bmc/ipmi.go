@@ -84,10 +84,10 @@ type IPMIBMC struct {
 }
 
 type IPMIUser struct {
-	id        string
-	username  string
-	enabled   bool
-	available bool
+	id       string
+	username string
+	enabled  bool
+	//available bool
 }
 
 // TODO: ipmi ciphers, should this also be tested?
@@ -196,9 +196,9 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	if !ok {
 		return Info{}, fmt.Errorf("cannot determine the power state for machine")
 	}
-	serial, ok := info["Product Serial"]
-	sku, ok := info["Product SKU"]
-	manufacturer, ok := info["Manufacturer"]
+	serial, _ := info["Product Serial"]
+	sku, _ := info["Product SKU"]
+	manufacturer, _ := info["Manufacturer"]
 	//TODO: currently we can't handle this correctly as we can't read the state on most hardware
 	//led, ok := info["Chassis Identify State"]
 	led := "Unknown"
@@ -263,7 +263,7 @@ func ipmiExecuteCommand(ctx context.Context, host string, port int, creds Creden
 		return "", "", fmt.Errorf("cannot excute command: %s, got: %w", cmd[0], err)
 	}
 
-	return string(stdout.Bytes()), string(stderr.Bytes()), nil
+	return stdout.String(), stderr.String(), nil
 }
 
 func ipmiping(ctx context.Context, host string, port int, creds Credentials) error {
