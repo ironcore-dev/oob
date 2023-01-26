@@ -351,7 +351,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	expireCreds := false
 	statusChanged := false
 
-	// If the type is unknown, attempt to determine it
+	// If the protocol is unknown, attempt to determine it
 	if oob.Status.Protocol == "" {
 		log.Debug(ctx, "Determining OOB protocol")
 		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
@@ -415,7 +415,6 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 			if exp.IsZero() {
 				exp = time.Now().AddDate(0, 0, 30)
 			}
-
 			ctx = log.WithValues(ctx, "expiration", exp)
 
 			// Persist the new credentials in case any upcoming operations fail
@@ -604,13 +603,6 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1alpha1.OOB, uuid string) (bool, error) {
 	// If the UUID changed, remove any preexisting BMCs with the same UUID
 	if oob.Status.UUID != uuid {
-		if oob.Status.UUID != "" {
-			err := r.deleteOtherOOBsWithUuid(ctx, oob.Namespace, uuid, oob.UID)
-			if err != nil {
-				return false, fmt.Errorf("cannot clear existing OOBs with UUID %s: %w", uuid, err)
-			}
-		}
-
 		// Construct a new OOB
 		oob = &oobv1alpha1.OOB{
 			TypeMeta: metav1.TypeMeta{
@@ -626,9 +618,31 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 			},
 		}
 
+		// Find any existing OOB with the same UUID
+		existingOob, err := r.ensureUniqueOOBByUUID(ctx, oob.Namespace, uuid)
+		if err != nil {
+			return false, err
+		}
+
+		// Adopt any existing OOB's spec into the new OOB
+		if existingOob != nil {
+			log.Info(ctx, "Adopting spec of existing OOB with the same UUID", "existingOob", existingOob.Name)
+			existingOob.Spec.DeepCopyInto(&oob.Spec)
+			err = r.Delete(ctx, existingOob)
+			if err != nil {
+				return false, fmt.Errorf("cannot delete OOB: %w", err)
+			}
+			log.Info(ctx, "Applying OOB")
+			err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+			if err != nil {
+				return false, fmt.Errorf("cannot apply OOB: %w", err)
+			}
+			return true, nil
+		}
+
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err := r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -651,26 +665,38 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 	return false, nil
 }
 
-func (r *OOBReconciler) deleteOtherOOBsWithUuid(ctx context.Context, namespace, uuid string, uid types.UID) error {
+func (r *OOBReconciler) ensureUniqueOOBByUUID(ctx context.Context, namespace, uuid string) (*oobv1alpha1.OOB, error) {
+	// Get all OOBss with a given UUID
 	var oobs oobv1alpha1.OOBList
-	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".spec.uuid": uuid})
+	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".status.uuid": uuid})
 	if err != nil {
-		return fmt.Errorf("cannot list existing OOBs with the same UUID: %w", err)
+		return nil, fmt.Errorf("cannot list existing OOBs with UUID %s: %w", uuid, err)
+	}
+	if len(oobs.Items) == 0 {
+		return nil, nil
 	}
 
-	for i := range oobs.Items {
-		if oobs.Items[i].UID == uid {
-			continue
+	// If any OOBs are found, delete all but the newest
+	newest := 0
+	if len(oobs.Items) > 1 {
+		del := make([]int, 0, len(oobs.Items)-1)
+		for i := 1; i < len(oobs.Items); i += 1 {
+			if oobs.Items[i].CreationTimestamp.Before(&oobs.Items[newest].CreationTimestamp) {
+				del = append(del, i)
+			} else {
+				del = append(del, newest)
+				newest = i
+			}
 		}
-
-		log.Info(ctx, "Deleting existing OOB with the same UUID", "bmc", &oobs.Items[i].Name)
-		err = r.Delete(ctx, &oobs.Items[i])
-		if err != nil {
-			return fmt.Errorf("cannot delete OOB: %w", err)
+		for _, i := range del {
+			log.Info(ctx, "Deleting older OOB with the same UUID", "oob", &oobs.Items[i].Name, "ns", &oobs.Items[i].Namespace)
+			err = r.Delete(ctx, &oobs.Items[i])
+			if err != nil {
+				return nil, fmt.Errorf("cannot delete OOB: %w", err)
+			}
 		}
 	}
-
-	return nil
+	return &oobs.Items[newest], nil
 }
 
 func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, name string) error {
