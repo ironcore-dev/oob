@@ -412,9 +412,11 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				return nil, false, fmt.Errorf("cannot create new credentials: %w", err)
 			}
 			creds, exp = bmctrl.Credentials()
-			if !exp.IsZero() {
-				ctx = log.WithValues(ctx, "expiration", exp)
+			if exp.IsZero() {
+				exp = time.Now().AddDate(0, 0, 30)
 			}
+
+			ctx = log.WithValues(ctx, "expiration", exp)
 
 			// Persist the new credentials in case any upcoming operations fail
 			err = r.persistCredentials(ctx, oob, creds, exp)
