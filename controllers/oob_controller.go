@@ -530,18 +530,6 @@ func (r *OOBReconciler) tagsToK8s(tags []tag) []oobv1alpha1.TagSpec {
 	return k8sTags
 }
 
-func (r *OOBReconciler) tagMapFromTags(tags []tag) (map[string]string, error) {
-	tmap := make(map[string]string)
-	for _, t := range tags {
-		_, ok := tmap[t.Key]
-		if ok {
-			return nil, fmt.Errorf("tag keys must be unique: %s", t.Key)
-		}
-		tmap[t.Key] = t.Value
-	}
-	return tmap, nil
-}
-
 func (r *OOBReconciler) createCredentials(ctx context.Context, bmctrl bmc.BMC) error {
 	var creds bmc.Credentials
 	var err error
