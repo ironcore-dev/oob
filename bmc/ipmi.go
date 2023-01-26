@@ -196,9 +196,9 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	if !ok {
 		return Info{}, fmt.Errorf("cannot determine the power state for machine")
 	}
-	serial, _ := info["Product Serial"]
-	sku, _ := info["Product SKU"]
-	manufacturer, _ := info["Manufacturer"]
+	serial := info["Product Serial"]
+	sku := info["Product SKU"]
+	manufacturer := info["Manufacturer"]
 	//TODO: currently we can't handle this correctly as we can't read the state on most hardware
 	//led, ok := info["Chassis Identify State"]
 	led := "Unknown"
