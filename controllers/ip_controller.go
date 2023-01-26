@@ -71,7 +71,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	ctx = log.WithValues(ctx, "mac", mac)
 
 	// Find an existing OOB if there is one
-	oob, err := r.findUniqueOOBByMac(ctx, ip.Namespace, mac)
+	oob, err := r.ensureUniqueOOBByMac(ctx, ip.Namespace, mac)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -132,7 +132,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	return ctrl.Result{}, nil
 }
 
-func (r *IPReconciler) findUniqueOOBByMac(ctx context.Context, namespace, mac string) (*oobv1alpha1.OOB, error) {
+func (r *IPReconciler) ensureUniqueOOBByMac(ctx context.Context, namespace, mac string) (*oobv1alpha1.OOB, error) {
 	// Get all OOBss with a given MAC
 	var oobs oobv1alpha1.OOBList
 	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".status.mac": mac})
