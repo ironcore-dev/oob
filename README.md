@@ -1,9 +1,6 @@
 # oob-operator
-[![Go Reference](https://pkg.go.dev/badge/github.com/onmetal/controller-utils.svg)](https://pkg.go.dev/github.com/onmetal/controller-utils)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com) 
 [![GitHub License](https://img.shields.io/static/v1?label=License&message=Apache-2.0&color=blue&style=flat-square)](LICENSE)
-
-
 
 ## Overview
 The operator is doing a "light" lights out management of the hardware deployed in an onmetal installation.
@@ -13,6 +10,9 @@ baseboard management controllers by leveraging different industry standards and 
 It is scanning the known IP Addresses/MAC Addresses from the out-of-band network and handling only specific
 endpoints that are determined by a filtering mechanism that is preconfigured. The filtering mechanism is used 
 to assign/find the preferred protocol and the proper manufacturer default credentials.
+
+After proper credentials have been found, a new set of credentials is created, existing state for the device will be
+enforced and all service information is read. A new OOB object is created or updated if already existing.
 
 ## Installation, using and developing 
 To find out more, please refer to documentation folder [docs](/docs)
@@ -26,20 +26,6 @@ This project aims to follow the Kubernetes [Operator pattern](https://kubernetes
 
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
 which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
-
-### Test It Out
-
-Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 
