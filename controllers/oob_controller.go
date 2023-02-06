@@ -286,7 +286,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), forceOwnershipUglyWorkaround)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -443,7 +443,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 				// Apply the OOB
 				log.Info(ctx, "Applying OOB status")
-				err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), client.ForceOwnership)
+				err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), forceOwnershipUglyWorkaround)
 				if err != nil {
 					return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
 				}
@@ -642,7 +642,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -745,7 +745,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the status
 	log.Info(ctx, "Applying OOB status")
-	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB status: %w", err)
 	}
