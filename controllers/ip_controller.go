@@ -123,7 +123,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 
 	// Apply the OOB status
 	log.Info(ctx, "Applying OOB")
-	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
+	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), forceOwnershipUglyWorkaround)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 	}
@@ -201,4 +201,13 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+}
+
+// TODO: Remove this ugly workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/2125
+type fouw struct{}
+
+var forceOwnershipUglyWorkaround = fouw{}
+
+func (fouw) ApplyToSubResourcePatch(opts *client.SubResourcePatchOptions) {
+	opts.Force = &(&struct{ x bool }{true}).x
 }
