@@ -4,20 +4,26 @@ updates:
 #  directory: "/"
 #  schedule:
 #    interval: daily
+#  commit-message:
+#    prefix: ""
 #  reviewers:
-#  - 5kt
 #  - Gchbg
+#  - 5kt
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
     interval: daily
+  commit-message:
+    prefix: ""
   reviewers:
-  - 5kt
   - Gchbg
+  - 5kt
 - package-ecosystem: docker
   directory: "/"
   schedule:
     interval: daily
+  commit-message:
+    prefix: ""
   reviewers:
-  - 5kt
   - Gchbg
+  - 5kt
