@@ -70,6 +70,7 @@ type accessInfo struct {
 	Port               int               `yaml:"port"`
 	DefaultCredentials []bmc.Credentials `yaml:"defaultCredentials"`
 	UUIDSource         string            `yaml:"uuidSource"`
+	Disregard          bool              `yaml:"disregard"`
 }
 
 type prefixMap map[string]accessInfo
@@ -174,7 +175,11 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	ctx = log.WithValues(ctx, "proto", bmctrl.Type())
+
+	if bmctrl != nil {
+		ctx = log.WithValues(ctx, "proto", bmctrl.Type())
+	}
+
 	if updated {
 		log.Debug(ctx, "Reconciled successfully")
 		return ctrl.Result{}, nil
@@ -355,6 +360,32 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	if oob.Status.Protocol == "" {
 		log.Debug(ctx, "Determining OOB protocol")
 		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
+
+		// Add a disregard annotation if it is mentioned in the macPrefixes
+		if ai.Disregard {
+
+			// The oob-disregard annotation prevents reconciling
+			oob := &oobv1alpha1.OOB{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: oobv1alpha1.GroupVersion.String(),
+					Kind:       "OOB",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   oob.Namespace,
+					Name:        oob.Name,
+					Annotations: map[string]string{"oob-operator.onmetal.de/disregard": "true"},
+				},
+			}
+
+			// Apply the OOB with disregard annotation
+			log.Info(ctx, "Applying OOB with disregard annotation")
+			err := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
+			if err != nil {
+				return nil, false, fmt.Errorf("cannot add disregard annotation: %w", err)
+			}
+			return nil, true, nil
+		}
+
 		if ai.Protocol == "" {
 			return nil, false, fmt.Errorf("no known way of connecting to the OOB")
 		}
@@ -1181,5 +1212,16 @@ func (r *OOBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).For(&oobv1alpha1.OOB{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate, notIgnoredPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+	notDisregardedPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			disregard, ok := e.Object.GetAnnotations()["oob-operator.onmetal.de/disregard"]
+			return !(ok && disregard == "true")
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			disregard, ok := e.ObjectNew.GetAnnotations()["oob-operator.onmetal.de/disregard"]
+			return !(ok && disregard == "true")
+		},
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).For(&oobv1alpha1.OOB{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate, notIgnoredPredicate, notDisregardedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
 }
