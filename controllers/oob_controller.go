@@ -361,6 +361,11 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 		log.Debug(ctx, "Determining OOB protocol")
 		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
 
+		// set reconcile successful to avoid multiple retries in case of empty credentials
+		if len(ai.DefaultCredentials) == 0 {
+			return nil, true, nil
+		}
+
 		// Add a disregard annotation if it is mentioned in the macPrefixes
 		if ai.Disregard {
 
