@@ -363,6 +363,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 		// set reconcile successful to avoid multiple retries in case of empty credentials
 		if len(ai.DefaultCredentials) == 0 {
+			log.Info(ctx, "No credentials defined, skipping this object")
 			return nil, true, nil
 		}
 
