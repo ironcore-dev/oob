@@ -166,6 +166,11 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	// An update will trigger a new reconciliation
 	if updated {
 		log.Debug(ctx, "Reconciled successfully")
+		oob.Status.State = "Ok"
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -173,6 +178,8 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	var bmctrl bmc.BMC
 	bmctrl, updated, err = r.ensureGoodCredentials(ctx, oob)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
 		return ctrl.Result{}, err
 	}
 
@@ -182,6 +189,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 	if updated {
 		log.Debug(ctx, "Reconciled successfully")
+		oob.Status.State = "Ok"
 		return ctrl.Result{}, nil
 	}
 
@@ -190,6 +198,12 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	var info bmc.Info
 	info, err = bmctrl.ReadInfo(ctx)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, fmt.Errorf("cannot retrieve OOB information: %w", err)
 	}
 
@@ -207,6 +221,12 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	// Set NTP servers
 	err = r.setNTPServers(ctx, bmctrl)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -219,18 +239,36 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	// Apply any changes to the locator LED
 	err = r.applyLocatorLED(ctx, oob, bmctrl, &specChanged, &statusChanged)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, err
 	}
 
 	// Apply anu changes to the power state
 	err = r.applyPower(ctx, oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, err
 	}
 
 	// Apply anu reset request
 	err = r.applyReset(ctx, oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
+		oob.Status.State = "Error"
+		oob.Status.StateReason = err.Error()
+		patchErr := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/stat"), client.ForceOwnership)
+		if patchErr != nil {
+			log.Error(ctx, fmt.Errorf("cannot apply OOB status: %v", patchErr))
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -262,6 +300,9 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 		oob.Status = *status
 	}
 
+	// lastReconTime holds the value of last successful reconcilation time
+	var lastReconTime = metav1.Now()
+
 	// Apply any changes to the OOB status
 	if statusChanged {
 		oob = &oobv1alpha1.OOB{
@@ -274,18 +315,20 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 				Name:      oob.Name,
 			},
 			Status: oobv1alpha1.OOBStatus{
-				Type:             oob.Status.Type,
-				Capabilities:     oob.Status.Capabilities,
-				Manufacturer:     oob.Status.Manufacturer,
-				SKU:              oob.Status.SKU,
-				SerialNumber:     oob.Status.SerialNumber,
-				LocatorLED:       oob.Status.LocatorLED,
-				Power:            oob.Status.Power,
-				ShutdownDeadline: oob.Status.ShutdownDeadline,
-				OS:               oob.Status.OS,
-				OSReason:         oob.Status.OSReason,
-				OSReadDeadline:   oob.Status.OSReadDeadline,
-				Console:          oob.Status.Console,
+				Type:                 oob.Status.Type,
+				Capabilities:         oob.Status.Capabilities,
+				Manufacturer:         oob.Status.Manufacturer,
+				SKU:                  oob.Status.SKU,
+				SerialNumber:         oob.Status.SerialNumber,
+				LocatorLED:           oob.Status.LocatorLED,
+				Power:                oob.Status.Power,
+				ShutdownDeadline:     oob.Status.ShutdownDeadline,
+				OS:                   oob.Status.OS,
+				OSReason:             oob.Status.OSReason,
+				OSReadDeadline:       oob.Status.OSReadDeadline,
+				Console:              oob.Status.Console,
+				State:                "Ok",
+				LastSuccessReconTime: &lastReconTime,
 			},
 		}
 
@@ -296,7 +339,6 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
 	}
-
 	log.Debug(ctx, "Reconciled successfully")
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }

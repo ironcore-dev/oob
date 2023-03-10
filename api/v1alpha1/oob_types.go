@@ -112,6 +112,17 @@ type OOBStatus struct {
 
 	//+optional
 	Console string `json:"console,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:Pattern=`^(?:Ok|Error)$`
+	State string `json:"state,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:MinLength=1
+	StateReason string `json:"stateReason,omitempty"`
+
+	//+optional
+	LastSuccessReconTime *metav1.Time `json:"lastSuccessReconTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
