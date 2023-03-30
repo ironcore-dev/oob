@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -117,13 +116,11 @@ func main() {
 	var exitCode int
 	defer func() { os.Exit(exitCode) }()
 
-	ctx, stop := signal.NotifyContext(log.Setup(context.Background(), p.dev), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP)
+	ctx, stop := signal.NotifyContext(log.Setup(context.Background(), p.dev, os.Stderr), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP)
 	defer stop()
 	log.Info(ctx, "Starting OOB operator")
 
 	defer func() { log.Info(ctx, "Exiting", "exitCode", exitCode) }()
-
-	rand.Seed(time.Now().UnixNano())
 
 	l := logr.FromContextOrDiscard(ctx)
 	klog.SetLogger(l)

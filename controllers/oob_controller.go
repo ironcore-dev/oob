@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/sethvargo/go-password/password"
@@ -41,23 +42,25 @@ import (
 	"github.com/onmetal/oob-operator/log"
 )
 
+//+kubebuilder:rbac:groups=onmetal.de,resources=oobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
 // OOBReconciler reconciles a OOB object
 type OOBReconciler struct {
 	client.Client
 	Namespace            string
 	CredentialsExpBuffer time.Duration
 	ShutdownTimeout      time.Duration
+	disabled             bool
+	disabledMtx          sync.RWMutex
 	macPrefixes          prefixMap
 	usernamePrefix       string
 	usernameRegex        *regexp.Regexp
 	temporaryPassword    string
 	ntpServers           []string
 }
-
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/finalizers,verbs=update
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 type tag struct {
 	Key   string `yaml:"key"`
@@ -87,6 +90,18 @@ func (m prefixMap) getAccessInfo(mac string) accessInfo {
 		}
 	}
 	return accessInfo{}
+}
+
+func (r *OOBReconciler) enable() {
+	r.disabledMtx.Lock()
+	defer r.disabledMtx.Unlock()
+	r.disabled = false
+}
+
+func (r *OOBReconciler) disable() {
+	r.disabledMtx.Lock()
+	defer r.disabledMtx.Unlock()
+	r.disabled = true
 }
 
 // LoadMACPrefixes loads MAC address prefixes from a file.
@@ -145,21 +160,28 @@ func (r *OOBReconciler) LoadMACPrefixes(ctx context.Context, prefixesFile string
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *OOBReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.disabledMtx.RLock()
+	defer r.disabledMtx.RUnlock()
+	if r.disabled {
+		return ctrl.Result{}, nil
+	}
+
+	return r.reconcile(ctx, req)
+}
+
+func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var oob oobv1alpha1.OOB
 	err := r.Get(ctx, req.NamespacedName, &oob)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(fmt.Errorf("cannot get OOB: %w", err))
 	}
 
-	return r.reconcile(ctx, &oob)
-}
-
-func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ctrl.Result, error) {
 	ctx = log.WithValues(ctx, "mac", oob.Status.Mac, "ip", oob.Status.IP, "uuid", oob.Status.UUID)
 	log.Debug(ctx, "Reconciling")
 
 	// Clear None fields
-	updated, err := r.clearNoneFields(ctx, oob)
+	var updated bool
+	updated, err = r.clearNoneFields(ctx, &oob)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -171,7 +193,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 	// Ensure that the OOB has working persisted credentials
 	var bmctrl bmc.BMC
-	bmctrl, updated, err = r.ensureGoodCredentials(ctx, oob)
+	bmctrl, updated, err = r.ensureGoodCredentials(ctx, &oob)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -194,7 +216,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	}
 
 	// Ensure that the OOB has the correct name and UUID
-	updated, err = r.ensureCorrectUUIDandName(ctx, oob, info.UUID)
+	updated, err = r.ensureCorrectUUIDandName(ctx, &oob, info.UUID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -214,22 +236,22 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	specChanged := false
 
 	// Set all status fields
-	statusChanged := r.setStatusFields(oob, &info, &requeueAfter)
+	statusChanged := r.setStatusFields(&oob, &info, &requeueAfter)
 
 	// Apply any changes to the locator LED
-	err = r.applyLocatorLED(ctx, oob, bmctrl, &specChanged, &statusChanged)
+	err = r.applyLocatorLED(ctx, &oob, bmctrl, &specChanged, &statusChanged)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// Apply anu changes to the power state
-	err = r.applyPower(ctx, oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
+	err = r.applyPower(ctx, &oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	// Apply anu reset request
-	err = r.applyReset(ctx, oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
+	err = r.applyReset(ctx, &oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -237,7 +259,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 	// Apply any changes to the OOB spec
 	if specChanged {
 		status := oob.Status.DeepCopy()
-		oob = &oobv1alpha1.OOB{
+		oob = oobv1alpha1.OOB{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: oobv1alpha1.GroupVersion.String(),
 				Kind:       "OOB",
@@ -255,7 +277,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB")
-		err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+		err = r.Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
 		}
@@ -264,7 +286,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 	// Apply any changes to the OOB status
 	if statusChanged {
-		oob = &oobv1alpha1.OOB{
+		oob = oobv1alpha1.OOB{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: oobv1alpha1.GroupVersion.String(),
 				Kind:       "OOB",
@@ -291,7 +313,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, oob *oobv1alpha1.OOB) (ct
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), forceOwnershipUglyWorkaround)
+		err = r.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), forceOwnershipUglyWorkaround)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
