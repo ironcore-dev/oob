@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,23 +40,43 @@ import (
 // IPReconciler reconciles a IP object.
 type IPReconciler struct {
 	client.Client
-	Namespace string
-	macRegex  *regexp.Regexp
+	Namespace   string
+	disabled    bool
+	disabledMtx sync.RWMutex
+	macRegex    *regexp.Regexp
+}
+
+func (r *IPReconciler) enable() {
+	r.disabledMtx.Lock()
+	defer r.disabledMtx.Unlock()
+	r.disabled = false
+}
+
+func (r *IPReconciler) disable() {
+	r.disabledMtx.Lock()
+	defer r.disabledMtx.Unlock()
+	r.disabled = true
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *IPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.disabledMtx.RLock()
+	defer r.disabledMtx.RUnlock()
+	if r.disabled {
+		return ctrl.Result{}, nil
+	}
+
+	return r.reconcile(ctx, req)
+}
+
+func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var ip ipamv1alpha1.IP
 	err := r.Get(ctx, req.NamespacedName, &ip)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(fmt.Errorf("cannot get IP: %w", err))
 	}
 
-	return r.reconcile(ctx, &ip)
-}
-
-func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl.Result, error) {
 	ctx = log.WithValues(ctx, "ip", ip.Spec.IP.String())
 	log.Debug(ctx, "Reconciling")
 
@@ -71,7 +92,8 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 	ctx = log.WithValues(ctx, "mac", mac)
 
 	// Find an existing OOB if there is one
-	oob, err := r.ensureUniqueOOBByMac(ctx, ip.Namespace, mac)
+	var oob *oobv1alpha1.OOB
+	oob, err = r.ensureUniqueOOBByMac(ctx, ip.Namespace, mac)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -133,7 +155,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, ip *ipamv1alpha1.IP) (ctrl
 }
 
 func (r *IPReconciler) ensureUniqueOOBByMac(ctx context.Context, namespace, mac string) (*oobv1alpha1.OOB, error) {
-	// Get all OOBss with a given MAC
+	// Get all OOBs with a given MAC
 	var oobs oobv1alpha1.OOBList
 	err := r.List(ctx, &oobs, client.InNamespace(namespace), client.MatchingFields{".status.mac": mac})
 	if err != nil {
@@ -200,7 +222,18 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+	validPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			ip, ok := e.Object.(*ipamv1alpha1.IP)
+			return ok && ip.Spec.IP != nil
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			ip, ok := e.ObjectNew.(*ipamv1alpha1.IP)
+			return ok && ip.Spec.IP != nil
+		},
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
 }
 
 // TODO: Remove this ugly workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/2125

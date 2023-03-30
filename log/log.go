@@ -2,25 +2,25 @@ package log
 
 import (
 	"context"
-	"os"
+	"io"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"
 )
 
-func Setup(ctx context.Context, dev bool) context.Context {
+func Setup(ctx context.Context, dev bool, writer io.Writer) context.Context {
 	var zeroLog zerolog.Logger
 
 	if dev {
 		cw := zerolog.ConsoleWriter{
-			Out:           os.Stderr,
+			Out:           writer,
 			TimeFormat:    "2006-01-02 15:04:05 MST",
 			FieldsExclude: []string{"v"},
 		}
 		zeroLog = zerolog.New(cw).Level(zerolog.DebugLevel).With().Timestamp().Logger()
 	} else {
-		zeroLog = zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().Timestamp().Logger()
+		zeroLog = zerolog.New(writer).Level(zerolog.DebugLevel).With().Timestamp().Logger()
 	}
 
 	return logr.NewContext(ctx, zerologr.New(&zeroLog))
