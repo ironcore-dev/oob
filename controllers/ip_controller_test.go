@@ -36,8 +36,8 @@ var _ = Describe("IP controller", func() {
 	var res reconcile.Result
 	var err error
 	BeforeEach(func() {
-		netaddrIP, err := netaddr.ParseIP("1.2.3.4")
-		Expect(err).NotTo(HaveOccurred())
+		netaddrIP, e := netaddr.ParseIP("1.2.3.4")
+		Expect(e).NotTo(HaveOccurred())
 		ip = &ipamv1alpha1.IP{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: ipamv1alpha1.GroupVersion.String(),
