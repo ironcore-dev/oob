@@ -83,7 +83,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	// Get the MAC address from the DHCP lease
 	mac, ok := ip.Labels["mac"]
 	if !ok {
-		log.Debug(ctx, "Ignoring lease: missing MAC address")
+		log.Debug(ctx, "Missing MAC address, ignoring lease")
 		return ctrl.Result{}, nil
 	}
 	if !r.macRegex.MatchString(mac) {

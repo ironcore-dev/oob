@@ -78,7 +78,7 @@ type accessInfo struct {
 
 type prefixMap map[string]accessInfo
 
-func (m prefixMap) getAccessInfo(mac string) accessInfo {
+func (m prefixMap) getAccessInfo(mac string) *accessInfo {
 	for i := len(mac); i > 0; i-- {
 		if mac[i-1] == ':' {
 			continue
@@ -86,10 +86,10 @@ func (m prefixMap) getAccessInfo(mac string) accessInfo {
 		prefix := mac[:i]
 		l, ok := m[prefix]
 		if ok {
-			return l
+			return &l
 		}
 	}
-	return accessInfo{}
+	return nil
 }
 
 func (r *OOBReconciler) enable() {
@@ -180,29 +180,26 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	log.Debug(ctx, "Reconciling")
 
 	// Clear None fields
-	var updated bool
-	updated, err = r.clearNoneFields(ctx, &oob)
+	var stop bool
+	stop, err = r.clearNoneFields(ctx, &oob)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	// An update will trigger a new reconciliation
-	if updated {
+	if stop {
 		log.Debug(ctx, "Reconciled successfully")
 		return ctrl.Result{}, nil
 	}
 
 	// Ensure that the OOB has working persisted credentials
 	var bmctrl bmc.BMC
-	bmctrl, updated, err = r.ensureGoodCredentials(ctx, &oob)
+	bmctrl, stop, err = r.ensureGoodCredentials(ctx, &oob)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	if bmctrl != nil {
 		ctx = log.WithValues(ctx, "proto", bmctrl.Type())
 	}
-
-	if updated {
+	if stop {
 		log.Debug(ctx, "Reconciled successfully")
 		return ctrl.Result{}, nil
 	}
@@ -216,12 +213,12 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	// Ensure that the OOB has the correct name and UUID
-	updated, err = r.ensureCorrectUUIDandName(ctx, &oob, info.UUID)
+	stop, err = r.ensureCorrectUUIDandName(ctx, &oob, info.UUID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	ctx = log.WithValues(ctx, "uuid", oob.Status.UUID)
-	if updated {
+	if stop {
 		log.Debug(ctx, "Reconciled successfully")
 		return ctrl.Result{}, nil
 	}
@@ -382,18 +379,14 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	if oob.Status.Protocol == "" {
 		log.Debug(ctx, "Determining OOB protocol")
 		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
-
-		// set reconcile successful to avoid multiple retries in case of empty credentials
-		if len(ai.DefaultCredentials) == 0 {
-			log.Info(ctx, "No credentials defined, skipping this object")
+		if ai == nil {
+			log.Info(ctx, "No prefix entry matches, ignoring unknown OOB")
 			return nil, true, nil
 		}
 
-		// Add a disregard annotation if it is mentioned in the macPrefixes
+		// Mark the OOB as disregarded if indicated in the prefix entry
 		if ai.Disregard {
-
-			// The oob-disregard annotation prevents reconciling
-			oob := &oobv1alpha1.OOB{
+			oob = &oobv1alpha1.OOB{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: oobv1alpha1.GroupVersion.String(),
 					Kind:       "OOB",
@@ -405,11 +398,11 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				},
 			}
 
-			// Apply the OOB with disregard annotation
-			log.Info(ctx, "Applying OOB with disregard annotation")
-			err := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
+			// Apply the OOB
+			log.Info(ctx, "Applying OOB")
+			err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot add disregard annotation: %w", err)
+				return nil, false, fmt.Errorf("cannot apply OOB: %w", err)
 			}
 			return nil, true, nil
 		}
@@ -441,6 +434,10 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	if creds.Username == "" && creds.Password == "" {
 		log.Info(ctx, "Ensuring initial credentials")
 		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
+		if ai == nil {
+			log.Info(ctx, "No prefix entry matches, ignoring unknown OOB")
+			return nil, true, nil
+		}
 		err = bmctrl.EnsureInitialCredentials(ctx, ai.DefaultCredentials, r.temporaryPassword)
 		if err != nil {
 			return nil, false, fmt.Errorf("cannot ensure initial credentials: %w", err)
