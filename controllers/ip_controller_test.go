@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"inet.af/netaddr"
@@ -287,6 +289,7 @@ var _ = Describe("IP controller", func() {
 							Name:      "oob1",
 						},
 					}
+					time.Sleep(time.Second)
 					Expect(k8sClient.Patch(ctx, &oob1, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 					Eventually(func(g Gomega, ctx SpecContext) {
 						g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
