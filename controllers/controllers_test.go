@@ -103,5 +103,5 @@ var _ = BeforeSuite(func() {
 		mgrCancel()
 		mgrDone.Wait()
 	})
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second)
 })
