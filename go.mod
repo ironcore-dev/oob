@@ -15,9 +15,9 @@ require (
 	github.com/sethvargo/go-password v0.2.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	github.com/stmcginnis/gofish v0.14.0
+	github.com/stmcginnis/gofish v0.13.0
 	golang.org/x/crypto v0.7.0
-	golang.org/x/text v0.8.0
+	golang.org/x/text v0.9.0
 	gopkg.in/yaml.v2 v2.4.0
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317
 	k8s.io/api v0.26.3
