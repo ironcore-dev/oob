@@ -26,7 +26,7 @@ COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 
-FROM debian:bookworm-20230320-slim
+FROM debian:bookworm-20230411-slim
 
 WORKDIR /
 
