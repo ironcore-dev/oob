@@ -24,9 +24,7 @@ all: build
 
 .PHONY: help
 help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
-
-##@ Development
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -46,27 +44,11 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet ## Run tests.
-	go run github.com/onsi/ginkgo/v2/ginkgo -r --race --randomize-suites --randomize-all --keep-going --timeout=9223372036s
-
-##@ Build
+	go run github.com/onsi/ginkgo/v2/ginkgo -r --race --randomize-suites --randomize-all --keep-going --timeout=9223372036s -v
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
 	go build -o oob-operator .
-
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run .
-
-.PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
-
-.PHONY: docker-push
-docker-push: ## Push docker image with the manager.
-	docker push ${IMG}
-
-##@ Deployment
 
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -75,12 +57,3 @@ install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/con
 .PHONY: uninstall
 uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	go run sigs.k8s.io/kustomize/kustomize/v4 build config/crd | kubectl delete --ignore-not-found=true -f -
-
-.PHONY: deploy
-deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && go run sigs.k8s.io/kustomize/kustomize/v4 edit set image controller=${IMG}
-	go run sigs.k8s.io/kustomize/kustomize/v4 build config/default | kubectl apply -f -
-
-.PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	go run sigs.k8s.io/kustomize/kustomize/v4 build config/default | kubectl delete --ignore-not-found=true -f -

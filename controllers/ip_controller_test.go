@@ -206,6 +206,8 @@ var _ = Describe("IP controller", func() {
 				Eventually(func(g Gomega, ctx SpecContext) {
 					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "mac-012345abcdef"}, &oob)).To(Succeed())
 				}, ctx, "7s").Should(Succeed())
+				Expect(oob.Spec.Filler).NotTo(BeNil())
+				Expect(*oob.Spec.Filler).To(BeNumerically(">", 0))
 				Expect(oob.Status.IP).To(Equal("1.2.3.4"))
 				Expect(oob.Status.Mac).To(Equal("012345abcdef"))
 			})

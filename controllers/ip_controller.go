@@ -19,10 +19,12 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -144,8 +146,30 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	}
 
 	// Apply the OOB status
-	log.Info(ctx, "Applying OOB")
+	log.Info(ctx, "Applying OOB status")
 	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), forceOwnershipUglyWorkaround)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
+	}
+
+	// Force a reconciliation
+	oob = &oobv1alpha1.OOB{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: oobv1alpha1.GroupVersion.String(),
+			Kind:       "OOB",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: oob.Namespace,
+			Name:      oob.Name,
+		},
+		Spec: oobv1alpha1.OOBSpec{
+			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
+		},
+	}
+
+	// Apply the OOB
+	log.Info(ctx, "Applying OOB")
+	err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 	}

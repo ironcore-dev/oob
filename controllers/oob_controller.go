@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -190,6 +192,13 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, nil
 	}
 
+	// Don't do anything if there is no IP or MAC
+	if oob.Status.IP == "" || oob.Status.Mac == "" {
+		log.Debug(ctx, "Missing IP or MAC, ignoring OOB")
+		log.Debug(ctx, "Reconciled successfully")
+		return ctrl.Result{}, nil
+	}
+
 	// Ensure that the OOB has working persisted credentials
 	var bmctrl bmc.BMC
 	bmctrl, stop, err = r.ensureGoodCredentials(ctx, &oob)
@@ -253,36 +262,9 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	// Apply any changes to the OOB spec
-	if specChanged {
-		status := oob.Status.DeepCopy()
-		oob = oobv1alpha1.OOB{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: oobv1alpha1.GroupVersion.String(),
-				Kind:       "OOB",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: oob.Namespace,
-				Name:      oob.Name,
-			},
-			Spec: oobv1alpha1.OOBSpec{
-				LocatorLED: oob.Spec.LocatorLED,
-				Power:      oob.Spec.Power,
-				Reset:      oob.Spec.Reset,
-			},
-		}
-
-		// Apply the OOB
-		log.Info(ctx, "Applying OOB")
-		err = r.Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
-		}
-		oob.Status = *status
-	}
-
 	// Apply any changes to the OOB status
 	if statusChanged {
+		spec := oob.Spec
 		oob = oobv1alpha1.OOB{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: oobv1alpha1.GroupVersion.String(),
@@ -314,6 +296,33 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
+		oob.Spec = spec
+	}
+
+	// Apply any changes to the OOB spec
+	if specChanged {
+		oob = oobv1alpha1.OOB{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: oobv1alpha1.GroupVersion.String(),
+				Kind:       "OOB",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: oob.Namespace,
+				Name:      oob.Name,
+			},
+			Spec: oobv1alpha1.OOBSpec{
+				LocatorLED: oob.Spec.LocatorLED,
+				Power:      oob.Spec.Power,
+				Reset:      oob.Spec.Reset,
+			},
+		}
+
+		// Apply the OOB
+		log.Info(ctx, "Applying OOB")
+		err = r.Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
+		}
 	}
 
 	log.Debug(ctx, "Reconciled successfully")
@@ -321,26 +330,36 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OOB) (bool, error) {
-	// Replace all None fields with blanks in order to delete the fields.
-	// This dance is necessary because one cannot delete a field if there happens to be another owner.
-	hasNone := false
+	// Replace all None fields with blanks in order to delete the fields
+	// This dance is necessary because one cannot delete a field if there happens to be another owner
+	hasTemp := false
+	// TODO: Replace unconditionally setting a filler value with this cleanup code when https://github.com/kubernetes/kubernetes/issues/117447 is solved
+	//if oob.Spec.Filler != nil {
+	//	if *oob.Spec.Filler == 0 {
+	//		oob.Spec.Filler = nil
+	//		hasTemp = true
+	//	} else {
+	//		*oob.Spec.Filler = 0
+	//		hasTemp = true
+	//	}
+	//}
 	if oob.Spec.LocatorLED == "None" {
 		oob.Spec.LocatorLED = ""
-		hasNone = true
+		hasTemp = true
 	}
 	if oob.Spec.Power == "None" {
 		oob.Spec.Power = ""
-		hasNone = true
+		hasTemp = true
 	}
 	if oob.Spec.Reset == "None" {
 		oob.Spec.Reset = ""
-		hasNone = true
+		hasTemp = true
 	}
-	if !hasNone {
+	if !hasTemp {
 		return false, nil
 	}
 
-	oob = &oobv1alpha1.OOB{
+	oobNext := &oobv1alpha1.OOB{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: oobv1alpha1.GroupVersion.String(),
 			Kind:       "OOB",
@@ -353,15 +372,18 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 			LocatorLED: oob.Spec.LocatorLED,
 			Power:      oob.Spec.Power,
 			Reset:      oob.Spec.Reset,
+			//Filler:		oob.Spec.Filler, //TODO: see above
+			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
 		},
 	}
 
 	// Apply the OOB
 	log.Info(ctx, "Applying OOB")
-	err := r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+	err := r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 	if err != nil {
 		return false, fmt.Errorf("cannot apply OOB: %w", err)
 	}
+	*oob = *oobNext
 
 	return true, nil
 }
@@ -373,7 +395,6 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 		return nil, false, fmt.Errorf("cannot get credentials: %w", err)
 	}
 	expireCreds := false
-	statusChanged := false
 
 	// If the protocol is unknown, attempt to determine it
 	if oob.Status.Protocol == "" {
@@ -386,7 +407,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 		// Mark the OOB as disregarded if indicated in the prefix entry
 		if ai.Disregard {
-			oob = &oobv1alpha1.OOB{
+			oobNext := &oobv1alpha1.OOB{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: oobv1alpha1.GroupVersion.String(),
 					Kind:       "OOB",
@@ -400,21 +421,43 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 			// Apply the OOB
 			log.Info(ctx, "Applying OOB")
-			err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
+			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
 			if err != nil {
 				return nil, false, fmt.Errorf("cannot apply OOB: %w", err)
 			}
+			*oob = *oobNext
 			return nil, true, nil
 		}
 
+		// Give up if the protocol cannot be determined
 		if ai.Protocol == "" {
 			return nil, false, fmt.Errorf("no known way of connecting to the OOB")
 		}
-		oob.Status.Protocol = ai.Protocol
-		oob.Status.Tags = r.tagsToK8s(ai.Tags)
-		oob.Status.Port = ai.Port
-		expireCreds = true
-		statusChanged = true
+
+		// Construct a new OOB
+		oobNext := &oobv1alpha1.OOB{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: oobv1alpha1.GroupVersion.String(),
+				Kind:       "OOB",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: oob.Namespace,
+				Name:      oob.Name,
+			},
+			Status: oobv1alpha1.OOBStatus{
+				Protocol: ai.Protocol,
+				Tags:     r.tagsToK8s(ai.Tags),
+				Port:     ai.Port,
+			},
+		}
+
+		// Apply the OOB
+		log.Info(ctx, "Applying OOB status")
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), forceOwnershipUglyWorkaround)
+		if err != nil {
+			return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
+		}
+		*oob = *oobNext
 	}
 	ctx = log.WithValues(ctx, "proto", oob.Status.Protocol)
 
@@ -479,39 +522,11 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				return nil, false, fmt.Errorf("cannot persist BMC credentials: %w", err)
 			}
 
-			if statusChanged {
-				// Construct a new OOB
-				oob = &oobv1alpha1.OOB{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: oobv1alpha1.GroupVersion.String(),
-						Kind:       "OOB",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: oob.Namespace,
-						Name:      oob.Name,
-					},
-					Status: oobv1alpha1.OOBStatus{
-						Protocol: oob.Status.Protocol,
-						Tags:     oob.Status.Tags,
-						Port:     oob.Status.Port,
-					},
-				}
-
-				// Apply the OOB
-				log.Info(ctx, "Applying OOB status")
-				err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), forceOwnershipUglyWorkaround)
-				if err != nil {
-					return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
-				}
-			}
-
 			// Delete obsolete credentials
 			err = bmctrl.DeleteUsers(ctx, r.usernameRegex)
 			if err != nil {
 				return nil, false, fmt.Errorf("cannot delete obsolete credentials: %w", err)
 			}
-
-			return bmctrl, true, nil
 		}
 	}
 
@@ -659,21 +674,6 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1alpha1.OOB, uuid string) (bool, error) {
 	// If the UUID changed, remove any preexisting BMCs with the same UUID
 	if oob.Status.UUID != uuid {
-		// Construct a new OOB
-		oob = &oobv1alpha1.OOB{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: oobv1alpha1.GroupVersion.String(),
-				Kind:       "OOB",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: oob.Namespace,
-				Name:      oob.Name,
-			},
-			Status: oobv1alpha1.OOBStatus{
-				UUID: uuid,
-			},
-		}
-
 		// Find any existing OOB with the same UUID
 		existingOob, err := r.ensureUniqueOOBByUUID(ctx, oob.Namespace, uuid)
 		if err != nil {
@@ -682,28 +682,57 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 
 		// Adopt any existing OOB's spec into the new OOB
 		if existingOob != nil {
+			// Construct a new OOB
+			oobNext := &oobv1alpha1.OOB{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: oobv1alpha1.GroupVersion.String(),
+					Kind:       "OOB",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: oob.Namespace,
+					Name:      oob.Name,
+				},
+				Spec: existingOob.Spec,
+			}
+
+			// Adopt the spec of the existing OOB and delete it
 			log.Info(ctx, "Adopting spec of existing OOB with the same UUID", "existingOob", existingOob.Name)
-			existingOob.Spec.DeepCopyInto(&oob.Spec)
 			err = r.Delete(ctx, existingOob)
 			if err != nil {
 				return false, fmt.Errorf("cannot delete OOB: %w", err)
 			}
+			gen := oob.Generation
 			log.Info(ctx, "Applying OOB")
-			err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 			if err != nil {
 				return false, fmt.Errorf("cannot apply OOB: %w", err)
 			}
-			return true, nil
+			*oob = *oobNext
+			if oob.Generation != gen {
+				return true, nil
+			}
+		}
+
+		// Construct a new OOB
+		oobNext := &oobv1alpha1.OOB{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: oobv1alpha1.GroupVersion.String(),
+				Kind:       "OOB",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: oob.Namespace,
+				Name:      oob.Name,
+			},
 		}
 
 		// Apply the OOB
+		oobNext.Status.UUID = uuid
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
-
-		return true, nil
+		*oob = *oobNext
 	}
 	ctx = log.WithValues(ctx, "uuid", oob.Status.UUID)
 
@@ -756,7 +785,7 @@ func (r *OOBReconciler) ensureUniqueOOBByUUID(ctx context.Context, namespace, uu
 }
 
 func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, name string) error {
-	// Delete the obsolete BMC
+	// Delete the obsolete OOB
 	log.Info(ctx, "Deleting OOB")
 	err := r.Delete(ctx, oob)
 	if err != nil {
@@ -781,7 +810,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the new OOB
 	log.Info(ctx, "Applying OOB under its correct name")
-	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB: %w", err)
 	}
@@ -801,7 +830,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the status
 	log.Info(ctx, "Applying OOB status")
-	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
+	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), forceOwnershipUglyWorkaround)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB status: %w", err)
 	}
@@ -810,7 +839,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 	log.Info(ctx, "Patching OOB")
 	oobPatch := oobRepl.DeepCopy()
 	oobPatch.ManagedFields = append(oob.ManagedFields, metav1.ManagedFieldsEntry{
-		Manager:    "oob-operator.onmetal.de/oob/uuid",
+		Manager:    "oob-operator.onmetal.de/oob",
 		Operation:  "Apply",
 		APIVersion: oobv1alpha1.GroupVersion.String(),
 		Time: &metav1.Time{
@@ -826,8 +855,8 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 		return fmt.Errorf("cannot patch OOB: %w", err)
 	}
 
-	// Remove the ignore annotation
-	oob = &oobv1alpha1.OOB{
+	// Remove the ignore annotation and force a reconciliation
+	oobRepl = &oobv1alpha1.OOB{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: oobv1alpha1.GroupVersion.String(),
 			Kind:       "OOB",
@@ -836,11 +865,14 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 			Namespace: oob.Namespace,
 			Name:      name,
 		},
+		Spec: oobv1alpha1.OOBSpec{
+			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
+		},
 	}
 
 	// Apply the new OOB
 	log.Info(ctx, "Applying OOB")
-	err = r.Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB: %w", err)
 	}
@@ -1215,17 +1247,6 @@ func (r *OOBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	validPredicate := predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			oob, ok := e.Object.(*oobv1alpha1.OOB)
-			return ok && oob.Status.IP != "" && oob.Status.Mac != ""
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			oob, ok := e.ObjectNew.(*oobv1alpha1.OOB)
-			return ok && oob.Status.IP != "" && oob.Status.Mac != ""
-		},
-	}
-
 	notIgnoredPredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			ignore, ok := e.Object.GetAnnotations()["oob-operator.onmetal.de/ignore"]
@@ -1248,5 +1269,5 @@ func (r *OOBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).For(&oobv1alpha1.OOB{}).WithEventFilter(predicate.And(inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate, notIgnoredPredicate, notDisregardedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+	return ctrl.NewControllerManagedBy(mgr).For(&oobv1alpha1.OOB{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate, notIgnoredPredicate, notDisregardedPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
 }

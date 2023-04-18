@@ -33,6 +33,10 @@ type OOBSpec struct {
 	//+optional
 	//+kubebuilder:validation:Pattern=`^(?:None|Reset|ResetImmediate)$`
 	Reset string `json:"reset,omitempty"`
+
+	//+optional
+	//+kubebuilder:validation:Minimum=0
+	Filler *int64 `json:"filler,omitempty"`
 }
 
 type TagSpec struct {
