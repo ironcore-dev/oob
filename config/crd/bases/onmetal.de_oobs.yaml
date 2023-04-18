@@ -61,6 +61,10 @@ spec:
           spec:
             description: OOBSpec defines the desired state of OOB
             properties:
+              filler:
+                format: int64
+                minimum: 0
+                type: integer
               locatorLED:
                 pattern: ^(?:None|On|Off|Blinking)$
                 type: string

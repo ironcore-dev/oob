@@ -76,8 +76,8 @@ func parseCmdLine() params {
 
 	pflag.Bool("dev", false, "Log human-readable messages at debug level.")
 	pflag.Bool("leader-elect", false, "Enable leader election for controller manager to ensure there is only one active controller manager.")
-	pflag.String("health-probe-bind-address", ":8081", "The address and port for the probe endpoint.")
-	pflag.String("metrics-bind-address", "127.0.0.1:8080", "The address and port for the metrics endpoint.")
+	pflag.String("health-probe-bind-address", "", "The address and port for the probe endpoint.")
+	pflag.String("metrics-bind-address", "0", "The address and port for the metrics endpoint.")
 	pflag.String("kubeconfig", "", "Use a kubeconfig to run out of cluster.")
 	pflag.String("namespace", "", "Limit monitoring to a specific namespace.")
 	pflag.String("mac-prefixes", "macPrefixes.yaml", "Read MAC address prefixes from the specified file.")
