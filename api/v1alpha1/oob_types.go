@@ -116,17 +116,22 @@ type OOBStatus struct {
 
 	//+optional
 	Console string `json:"console,omitempty"`
+
+	//+optional
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="UUID",priority=10
-//+kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.spec.ip`,description="IP"
-//+kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer"
-//+kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type"
+//+kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`,description="UUID"
+//+kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.status.ip`,description="IP",priority=1
+//+kubebuilder:printcolumn:name="MAC",type=string,JSONPath=`.status.mac`,description="MAC",priority=1
 //+kubebuilder:printcolumn:name="POWER",type=string,JSONPath=`.status.power`,description="Power State"
 //+kubebuilder:printcolumn:name="LED",type=string,JSONPath=`.status.locatorLED`,description="Locator LED"
-//+kubebuilder:printcolumn:name="Description",type=string,JSONPath=`.metadata.annotations['description']`,description="Description"
+//+kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Readyness"
+//+kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer",priority=1
+//+kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type",priority=1
+//+kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=`.metadata.annotations['description']`,description="Description",priority=1
 
 // OOB is the Schema for the oobs API
 type OOB struct {

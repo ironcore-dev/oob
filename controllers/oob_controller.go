@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"regexp"
 	"sync"
@@ -31,7 +30,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,7 +78,7 @@ type accessInfo struct {
 
 type prefixMap map[string]accessInfo
 
-func (m prefixMap) getAccessInfo(mac string) *accessInfo {
+func (m prefixMap) get(mac string) (accessInfo, bool) {
 	for i := len(mac); i > 0; i-- {
 		if mac[i-1] == ':' {
 			continue
@@ -88,10 +86,10 @@ func (m prefixMap) getAccessInfo(mac string) *accessInfo {
 		prefix := mac[:i]
 		l, ok := m[prefix]
 		if ok {
-			return &l
+			return l, true
 		}
 	}
-	return nil
+	return accessInfo{}, false
 }
 
 //func (r *OOBReconciler) enable() {
@@ -201,9 +199,13 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	// Ensure that the OOB has working persisted credentials
 	var bmctrl bmc.BMC
-	bmctrl, stop, err = r.ensureGoodCredentials(ctx, &oob)
+	var msgErr error
+	bmctrl, stop, msgErr, err = r.ensureGoodCredentials(ctx, &oob)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+	if msgErr != nil {
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, msgErr)
 	}
 	if bmctrl != nil {
 		ctx = log.WithValues(ctx, "proto", bmctrl.Type())
@@ -218,7 +220,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	var info bmc.Info
 	info, err = bmctrl.ReadInfo(ctx)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("cannot retrieve OOB information: %w", err)
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, fmt.Errorf("cannot retrieve OOB information: %w", err))
 	}
 
 	// Ensure that the OOB has the correct name and UUID
@@ -235,7 +237,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	// Set NTP servers
 	err = r.setNTPServers(ctx, bmctrl)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, err)
 	}
 
 	requeueAfter := time.Hour * 24
@@ -247,19 +249,19 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	// Apply any changes to the locator LED
 	err = r.applyLocatorLED(ctx, &oob, bmctrl, &specChanged, &statusChanged)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, err)
 	}
 
 	// Apply anu changes to the power state
 	err = r.applyPower(ctx, &oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, err)
 	}
 
 	// Apply anu reset request
 	err = r.applyReset(ctx, &oob, bmctrl, &specChanged, &statusChanged, &requeueAfter)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{Requeue: true}, r.applyErrorCondition(ctx, &oob, err)
 	}
 
 	// Apply any changes to the OOB status
@@ -299,6 +301,16 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		oob.Spec = spec
 	}
 
+	// Set ready condition
+	err = r.applyCondition(ctx, &oob, metav1.Condition{
+		Type:   "Ready",
+		Status: "True",
+		Reason: "Ready",
+	}, "oob-operator.onmetal.de/oob")
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Apply any changes to the OOB spec
 	if specChanged {
 		oob = oobv1alpha1.OOB{
@@ -327,6 +339,42 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	log.Debug(ctx, "Reconciled successfully")
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *OOBReconciler) applyErrorCondition(ctx context.Context, oob *oobv1alpha1.OOB, msgErr error) error {
+	return r.applyCondition(ctx, oob, metav1.Condition{
+		Type:    "Ready",
+		Status:  "False",
+		Reason:  "Error",
+		Message: msgErr.Error(),
+	}, "oob-operator.onmetal.de/oob")
+}
+
+func (r *OOBReconciler) applyCondition(ctx context.Context, oob *oobv1alpha1.OOB, cond metav1.Condition, owner client.FieldOwner) error {
+	// Set ready condition
+	oobNext := &oobv1alpha1.OOB{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: oobv1alpha1.GroupVersion.String(),
+			Kind:       "OOB",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: oob.Namespace,
+			Name:      oob.Name,
+		},
+		Status: oobv1alpha1.OOBStatus{
+			Conditions: setCondition(oob.Status.Conditions, cond),
+		},
+	}
+
+	// Apply the OOB status
+	log.Info(ctx, "Applying OOB status")
+	err := r.Status().Patch(ctx, oobNext, client.Apply, owner, forceOwnershipUglyWorkaround)
+	if err != nil {
+		return fmt.Errorf("cannot apply OOB status: %w", err)
+	}
+	*oob = *oobNext
+
+	return nil
 }
 
 func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OOB) (bool, error) {
@@ -373,7 +421,7 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 			Power:      oob.Spec.Power,
 			Reset:      oob.Spec.Reset,
 			//Filler:		oob.Spec.Filler, //TODO: see above
-			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
+			Filler: newRandInt64(),
 		},
 	}
 
@@ -388,25 +436,38 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 	return true, nil
 }
 
-func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.BMC, bool, error) {
+func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.BMC, bool, error, error) {
 	// Read the credentials secret if one exists
-	creds, exp, err := r.getCredentials(ctx, oob)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, false, fmt.Errorf("cannot get credentials: %w", err)
+	creds, exp, msgErr, err := r.getCredentials(ctx, oob)
+	if (err != nil && !apierrors.IsNotFound(err)) || msgErr != nil {
+		return nil, false, msgErr, err
 	}
 	expireCreds := false
 
-	// If the protocol is unknown, attempt to determine it
-	if oob.Status.Protocol == "" {
-		log.Debug(ctx, "Determining OOB protocol")
-		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
-		if ai == nil {
-			log.Info(ctx, "No prefix entry matches, ignoring unknown OOB")
-			return nil, true, nil
+	// If the OOB is missing basic access data, look it up in the MAC prefix list
+	var ai accessInfo
+	if oob.Status.Protocol == "" || (creds.Username == "" && creds.Password == "") {
+		var ok bool
+		ai, ok = r.macPrefixes.get(oob.Status.Mac)
+
+		// Mark the OOB as unknown if no prefix entry exists
+		if !ok {
+			// Set ready condition
+			err = r.applyCondition(ctx, oob, metav1.Condition{
+				Type:   "Ready",
+				Status: "False",
+				Reason: "Unknown",
+			}, "oob-operator.onmetal.de/oob")
+			if err != nil {
+				return nil, false, nil, err
+			}
+
+			return nil, true, nil, nil
 		}
 
 		// Mark the OOB as disregarded if indicated in the prefix entry
 		if ai.Disregard {
+			// Add a disregard annotation
 			oobNext := &oobv1alpha1.OOB{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: oobv1alpha1.GroupVersion.String(),
@@ -421,17 +482,42 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 			// Apply the OOB
 			log.Info(ctx, "Applying OOB")
-			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/disregard"), client.ForceOwnership)
+			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot apply OOB: %w", err)
+				return nil, false, nil, fmt.Errorf("cannot apply OOB: %w", err)
 			}
 			*oob = *oobNext
-			return nil, true, nil
+
+			//Set ready condition
+			err = r.applyCondition(ctx, oob, metav1.Condition{
+				Type:   "Ready",
+				Status: "False",
+				Reason: "Disregarded",
+			}, "oob-operator.onmetal.de/oob")
+			if err != nil {
+				return nil, false, nil, err
+			}
+
+			return nil, true, nil, nil
 		}
+
+		err = r.applyCondition(ctx, oob, metav1.Condition{
+			Type:   "Ready",
+			Status: "False",
+			Reason: "SettingUp",
+		}, "oob-operator.onmetal.de/oob")
+		if err != nil {
+			return nil, false, nil, err
+		}
+	}
+
+	// If the protocol is unknown, attempt to determine it
+	if oob.Status.Protocol == "" {
+		log.Debug(ctx, "Determining OOB protocol")
 
 		// Give up if the protocol cannot be determined
 		if ai.Protocol == "" {
-			return nil, false, fmt.Errorf("no known way of connecting to the OOB")
+			return nil, false, fmt.Errorf("no known way of connecting to the OOB"), nil
 		}
 
 		// Construct a new OOB
@@ -455,7 +541,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 		log.Info(ctx, "Applying OOB status")
 		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), forceOwnershipUglyWorkaround)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot apply OOB status: %w", err)
+			return nil, false, nil, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
 		*oob = *oobNext
 	}
@@ -465,31 +551,26 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 	var tags map[string]string
 	tags, err = r.tagMapFromK8s(oob.Status.Tags)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot parse OOB tags: %w", err)
+		return nil, false, fmt.Errorf("invalid OOB tags: %w", err), nil
 	}
 	var bmctrl bmc.BMC
 	bmctrl, err = bmc.NewBMC(oob.Status.Protocol, tags, oob.Status.IP, oob.Status.Port, creds, exp)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot initialize BMC: %w", err)
+		return nil, false, fmt.Errorf("cannot initialize BMC: %w", err), nil
 	}
 
 	// If credentials are unknown create new ones, otherwise try connecting
 	if creds.Username == "" && creds.Password == "" {
 		log.Info(ctx, "Ensuring initial credentials")
-		ai := r.macPrefixes.getAccessInfo(oob.Status.Mac)
-		if ai == nil {
-			log.Info(ctx, "No prefix entry matches, ignoring unknown OOB")
-			return nil, true, nil
-		}
 		err = bmctrl.EnsureInitialCredentials(ctx, ai.DefaultCredentials, r.temporaryPassword)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot ensure initial credentials: %w", err)
+			return nil, false, fmt.Errorf("cannot ensure initial credentials: %w", err), nil
 		}
 		expireCreds = true
 	} else {
 		err = bmctrl.Connect(ctx)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot connect to BMC: %w", err)
+			return nil, false, fmt.Errorf("cannot connect to BMC: %w", err), nil
 		}
 	}
 
@@ -508,7 +589,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 			// Create new credentials
 			err = r.createCredentials(ctx, bmctrl)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot create new credentials: %w", err)
+				return nil, false, fmt.Errorf("cannot create new credentials: %w", err), nil
 			}
 			creds, exp = bmctrl.Credentials()
 			if exp.IsZero() {
@@ -519,35 +600,35 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 			// Persist the new credentials in case any upcoming operations fail
 			err = r.persistCredentials(ctx, oob, creds, exp)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot persist BMC credentials: %w", err)
+				return nil, false, fmt.Errorf("cannot persist BMC credentials: %w", err), nil
 			}
 
 			// Delete obsolete credentials
 			err = bmctrl.DeleteUsers(ctx, r.usernameRegex)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot delete obsolete credentials: %w", err)
+				return nil, false, fmt.Errorf("cannot delete obsolete credentials: %w", err), nil
 			}
 		}
 	}
 
-	return bmctrl, false, nil
+	return bmctrl, false, nil, nil
 }
 
-func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.Credentials, time.Time, error) {
+func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB) (bmc.Credentials, time.Time, error, error) {
 	if oob.Status.Mac == "" {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("OOB has no MAC address")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("OOB has no MAC address"), nil
 	}
 
 	// Get the secret
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: oob.Namespace, Name: oob.Status.Mac}, secret)
 	if err != nil {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("cannot get credentials secret: %w", err)
+		return bmc.Credentials{}, time.Time{}, nil, fmt.Errorf("cannot get credentials secret: %w", err)
 	}
 
 	// Validate the secret
 	if secret.Type != "kubernetes.io/basic-auth" {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has incorrect type: %s", secret.Type)
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has incorrect type: %s", secret.Type), nil
 	}
 
 	// Extract and verify fields
@@ -555,29 +636,29 @@ func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB
 	var ok bool
 	mac, ok = secret.Data["mac"]
 	if !ok {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a MAC address")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a MAC address"), nil
 	}
 	if string(mac) != oob.Status.Mac {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has an unexpected MAC address: %s", mac)
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret has an unexpected MAC address: %s", mac), nil
 	}
 	username, ok = secret.Data["username"]
 	if !ok {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a username")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a username"), nil
 	}
 	passwd, ok = secret.Data["password"]
 	if !ok {
-		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a password")
+		return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret does not contain a password"), nil
 	}
 	exp := time.Time{}
 	expStr, ok = secret.Data["expiration"]
 	if ok {
 		err = exp.UnmarshalText(expStr)
 		if err != nil {
-			return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret contains an invalid expiration time: %w", err)
+			return bmc.Credentials{}, time.Time{}, fmt.Errorf("credentials secret contains an invalid expiration time: %w", err), nil
 		}
 	}
 
-	return bmc.Credentials{Username: string(username), Password: string(passwd)}, exp, nil
+	return bmc.Credentials{Username: string(username), Password: string(passwd)}, exp, nil, nil
 }
 
 func (r *OOBReconciler) tagMapFromK8s(tags []oobv1alpha1.TagSpec) (map[string]string, error) {
@@ -601,29 +682,16 @@ func (r *OOBReconciler) tagsToK8s(tags []tag) []oobv1alpha1.TagSpec {
 }
 
 func (r *OOBReconciler) createCredentials(ctx context.Context, bmctrl bmc.BMC) error {
-	var creds bmc.Credentials
-	var err error
-
 	// Generate credentials
-	creds.Username, err = password.Generate(6, 0, 0, true, false)
-	if err != nil {
-		return fmt.Errorf("cannot generate a random user: %w", err)
-	}
-	creds.Username = r.usernamePrefix + creds.Username
-	creds.Password, err = password.Generate(16, 4, 0, false, false)
-	if err != nil {
-		return fmt.Errorf("cannot generate a random password: %w", err)
-	}
+	var creds bmc.Credentials
+	creds.Username = r.usernamePrefix + password.MustGenerate(6, 0, 0, true, false)
+	creds.Password = password.MustGenerate(16, 6, 0, false, true)
 
 	// Generate a second password to be used in case of a password change requirement
-	var anotherPassword string
-	anotherPassword, err = password.Generate(16, 4, 0, false, false)
-	if err != nil {
-		return fmt.Errorf("cannot generate a random password: %w", err)
-	}
+	anotherPassword := password.MustGenerate(16, 6, 0, false, true)
 
 	// Use the existing credentials to create a new user with a new password
-	err = bmctrl.CreateUser(ctx, creds, anotherPassword)
+	err := bmctrl.CreateUser(ctx, creds, anotherPassword)
 	if err != nil {
 		return fmt.Errorf("cannot create user: %w", err)
 	}
@@ -682,6 +750,16 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 
 		// Adopt any existing OOB's spec into the new OOB
 		if existingOob != nil {
+			// Set ready condition
+			err = r.applyCondition(ctx, oob, metav1.Condition{
+				Type:   "Ready",
+				Status: "False",
+				Reason: "AdoptedSpec",
+			}, "oob-operator.onmetal.de/oob")
+			if err != nil {
+				return false, err
+			}
+
 			// Construct a new OOB
 			oobNext := &oobv1alpha1.OOB{
 				TypeMeta: metav1.TypeMeta{
@@ -723,23 +801,46 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 				Namespace: oob.Namespace,
 				Name:      oob.Name,
 			},
+			Status: oobv1alpha1.OOBStatus{
+				UUID: uuid,
+			},
 		}
 
 		// Apply the OOB
-		oobNext.Status.UUID = uuid
 		log.Info(ctx, "Applying OOB status")
 		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
 		*oob = *oobNext
+
+		// Set ready condition
+		err = r.applyCondition(ctx, oob, metav1.Condition{
+			Type:   "Ready",
+			Status: "False",
+			Reason: "NewUUID",
+		}, "oob-operator.onmetal.de/oob")
+		if err != nil {
+			return false, err
+		}
 	}
 	ctx = log.WithValues(ctx, "uuid", oob.Status.UUID)
 
 	// If the name does not match the UUID, replace the BMC with a new BMC with the correct name
 	name := oob.Status.UUID
 	if oob.Name != name {
-		err := r.replaceOOB(ctx, oob, name)
+		// Set ready condition
+		err := r.applyCondition(ctx, oob, metav1.Condition{
+			Type:   "Ready",
+			Status: "False",
+			Reason: "ToBeReplaced",
+		}, "oob-operator.onmetal.de/oob")
+		if err != nil {
+			return false, err
+		}
+
+		// Replace OOB in order to rename it
+		err = r.replaceOOB(ctx, oob, name)
 		if err != nil {
 			return false, fmt.Errorf("cannot replace OOB: %w", err)
 		}
@@ -855,6 +956,16 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 		return fmt.Errorf("cannot patch OOB: %w", err)
 	}
 
+	// Set ready condition
+	err = r.applyCondition(ctx, oobRepl, metav1.Condition{
+		Type:   "Ready",
+		Status: "False",
+		Reason: "SettingUp",
+	}, "oob-operator.onmetal.de/oob")
+	if err != nil {
+		return err
+	}
+
 	// Remove the ignore annotation and force a reconciliation
 	oobRepl = &oobv1alpha1.OOB{
 		TypeMeta: metav1.TypeMeta{
@@ -866,7 +977,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 			Name:      name,
 		},
 		Spec: oobv1alpha1.OOBSpec{
-			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
+			Filler: newRandInt64(),
 		},
 	}
 
