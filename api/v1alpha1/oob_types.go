@@ -126,6 +126,7 @@ type OOBStatus struct {
 //+kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type"
 //+kubebuilder:printcolumn:name="POWER",type=string,JSONPath=`.status.power`,description="Power State"
 //+kubebuilder:printcolumn:name="LED",type=string,JSONPath=`.status.locatorLED`,description="Locator LED"
+//+kubebuilder:printcolumn:name="Description",type=string,JSONPath=`.metadata.annotations['description']`,description="Description"
 
 // OOB is the Schema for the oobs API
 type OOB struct {
