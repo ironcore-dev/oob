@@ -19,12 +19,10 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"math"
 	"regexp"
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -142,6 +140,11 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		Status: oobv1alpha1.OOBStatus{
 			IP:  ip.Spec.IP.String(),
 			Mac: mac,
+			Conditions: setCondition(oob.Status.Conditions, metav1.Condition{
+				Type:   "Ready",
+				Status: "False",
+				Reason: "NewIP",
+			}),
 		},
 	}
 
@@ -163,7 +166,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 			Name:      oob.Name,
 		},
 		Spec: oobv1alpha1.OOBSpec{
-			Filler: &(&struct{ x int64 }{1 + rand.Int63nRange(0, math.MaxInt64)}).x,
+			Filler: newRandInt64(),
 		},
 	}
 
@@ -258,13 +261,4 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
-}
-
-// TODO: Remove this ugly workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/2125
-type fouw struct{}
-
-var forceOwnershipUglyWorkaround = fouw{}
-
-func (fouw) ApplyToSubResourcePatch(opts *client.SubResourcePatchOptions) {
-	opts.Force = &(&struct{ x bool }{true}).x
 }
