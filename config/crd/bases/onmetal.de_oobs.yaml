@@ -41,6 +41,10 @@ spec:
       jsonPath: .status.locatorLED
       name: LED
       type: string
+    - description: Description
+      jsonPath: .metadata.annotations['description']
+      name: Description
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
