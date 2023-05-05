@@ -92,11 +92,11 @@ func (m prefixMap) get(mac string) (accessInfo, bool) {
 	return accessInfo{}, false
 }
 
-//func (r *OOBReconciler) enable() {
-//	r.disabledMtx.Lock()
-//	defer r.disabledMtx.Unlock()
-//	r.disabled = false
-//}
+func (r *OOBReconciler) enable() {
+	r.disabledMtx.Lock()
+	defer r.disabledMtx.Unlock()
+	r.disabled = false
+}
 
 func (r *OOBReconciler) disable() {
 	r.disabledMtx.Lock()
