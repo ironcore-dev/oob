@@ -23,8 +23,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,8 +106,9 @@ func redfishConnect(ctx context.Context, host string, port int, creds Credential
 		port = 443
 	}
 
+	hostAndPort := net.JoinHostPort(host, strconv.Itoa(port))
 	config := gofish.ClientConfig{
-		Endpoint: fmt.Sprintf("https://%s:%d", host, port),
+		Endpoint: fmt.Sprintf("https://%s", hostAndPort),
 		Username: creds.Username,
 		Password: creds.Password,
 		Insecure: true,
