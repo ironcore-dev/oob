@@ -19,7 +19,9 @@ package bmc
 import (
 	"context"
 	"fmt"
+	"net"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,12 +109,7 @@ func sshConnect(ctx context.Context, host string, port int, creds Credentials) (
 		port = 22
 	}
 
-	hostAndPort := ""
-	if strings.Contains(host, ":") {
-		hostAndPort = fmt.Sprintf("[%s]:%d", host, port)
-	} else {
-		hostAndPort = fmt.Sprintf("%s:%d", host, port)
-	}
+	hostAndPort := net.JoinHostPort(host, strconv.Itoa(port))
 	client, err := ssh.Dial("tcp", hostAndPort, sshConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect: %w", err)
