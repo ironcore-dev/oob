@@ -622,6 +622,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 		led = "Unknown"
 	}
 
+	// Reading the OS state is supported only on Lenovo hardware
 	var os, osReason string
 	if len(systems) > 0 {
 		sys := systems[0]

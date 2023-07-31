@@ -1044,6 +1044,16 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 		return statusChanged
 	}
 
+	// If we don't support reading the OS state, clear all OS related fields, if they are set to anything
+	if info.OSReason == "" {
+		if oob.Status.OS != "" || oob.Status.OSReadDeadline != nil {
+			oob.Status.OS = ""
+			oob.Status.OSReadDeadline = nil
+			statusChanged = true
+		}
+		return statusChanged
+	}
+
 	// If the OS is Ok, clear OS read deadline
 	if info.OS == "Ok" {
 		if oob.Status.OS != "Ok" {
