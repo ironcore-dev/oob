@@ -24,7 +24,7 @@ jobs:
   buildAndPush:
     runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: docker/metadata-action@v4
       id: meta
       with:
