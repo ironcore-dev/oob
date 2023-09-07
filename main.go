@@ -37,9 +37,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
+	computev1alpha1 "github.com/onmetal/onmetal-api/api/compute/v1alpha1"
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
 	"github.com/onmetal/oob-operator/controllers"
 	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/servers"
 )
 
 func usage() {
@@ -67,6 +69,8 @@ type params struct {
 	macPrefixes            string
 	credentialsExpBuffer   time.Duration
 	shutdownTimeout        time.Duration
+	consoleServerCert      string
+	consoleServerKey       string
 }
 
 func parseCmdLine() params {
@@ -83,6 +87,8 @@ func parseCmdLine() params {
 	pflag.String("mac-prefixes", "macPrefixes.yaml", "Read MAC address prefixes from the specified file.")
 	pflag.Duration("credentials-exp-buffer", 125*time.Hour, "Renew expiring credentials this long before they are set to expire expire. See https://golang.org/pkg/time/#ParseDuration")
 	pflag.Duration("shutdown-timeout", 5*time.Minute, "Wait this long before issuing an immediate shutdown, if graceful shutdown has not succeeded. See https://golang.org/pkg/time/#ParseDuration")
+	pflag.String("console-server-cert", "", "Use a TLS certificate for the console server. If not set, do not start the console server.")
+	pflag.String("console-server-key", "", "Use a TLS key for the console server. If not set, do not start the console server.")
 
 	var help bool
 	pflag.BoolVarP(&help, "help", "h", false, "Show this help message.")
@@ -107,6 +113,8 @@ func parseCmdLine() params {
 		macPrefixes:            viper.GetString("mac-prefixes"),
 		credentialsExpBuffer:   viper.GetDuration("credentials-exp-buffer"),
 		shutdownTimeout:        viper.GetDuration("shutdown-timeout"),
+		consoleServerCert:      viper.GetString("console-server-cert"),
+		consoleServerKey:       viper.GetString("console-server-key"),
 	}
 }
 
@@ -116,7 +124,7 @@ func main() {
 	var exitCode int
 	defer func() { os.Exit(exitCode) }()
 
-	ctx, stop := signal.NotifyContext(log.Setup(context.Background(), p.dev, os.Stderr), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP)
+	ctx, stop := signal.NotifyContext(log.Setup(context.Background(), p.dev, false, os.Stderr), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGHUP)
 	defer stop()
 	log.Info(ctx, "Starting OOB operator")
 
@@ -130,6 +138,7 @@ func main() {
 	utilruntime.Must(kscheme.AddToScheme(scheme))
 	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(oobv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(computev1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 
 	if p.namespace == "" {
@@ -143,13 +152,14 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		BaseContext: func() context.Context {
+			return ctx
+		},
 		Scheme:                 scheme,
-		LeaderElection:         viper.GetBool("leader-elect"),
+		LeaderElection:         p.leaderElect,
 		LeaderElectionID:       "125e56fc.onmetal.de",
-		Namespace:              p.namespace,
-		MetricsBindAddress:     viper.GetString("metrics-bind-address"),
-		HealthProbeBindAddress: viper.GetString("health-probe-bind-address"),
-		Port:                   9443,
+		HealthProbeBindAddress: p.healthProbeBindAddress,
+		MetricsBindAddress:     p.metricsBindAddress,
 	})
 	if err != nil {
 		log.Error(ctx, fmt.Errorf("cannot create manager: %w", err))
@@ -185,6 +195,20 @@ func main() {
 		log.Error(ctx, fmt.Errorf("cannot create controller: %w", err), "controller", "OOB")
 		exitCode = 1
 		return
+	}
+
+	if p.consoleServerCert != "" && p.consoleServerKey != "" {
+		consoleServer := &servers.ConsoleServer{
+			Address: ":12319",
+			TLSCert: p.consoleServerCert,
+			TLSKey:  p.consoleServerKey,
+		}
+		err = consoleServer.SetupWithManager(mgr)
+		if err != nil {
+			log.Error(ctx, fmt.Errorf("cannot create server: %w", err), "server", "console")
+			exitCode = 1
+			return
+		}
 	}
 
 	//+kubebuilder:scaffold:builder

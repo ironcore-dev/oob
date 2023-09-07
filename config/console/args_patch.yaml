@@ -1,0 +1,6 @@
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --console-server-key=/cert/tls.key
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --console-server-cert=/cert/tls.crt

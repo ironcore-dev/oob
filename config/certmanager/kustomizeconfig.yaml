@@ -1,0 +1,10 @@
+varReference:
+- kind: Certificate
+  group: cert-manager.io
+  path: spec/commonName
+- kind: Certificate
+  group: cert-manager.io
+  path: spec/dnsNames
+- kind: Certificate
+  group: cert-manager.io
+  path: spec/secretName
