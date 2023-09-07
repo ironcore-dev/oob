@@ -619,7 +619,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 	case "Off":
 		led = "Off"
 	default:
-		led = "Unknown"
+		led = ""
 	}
 
 	// Reading the OS state is supported only on Lenovo hardware

@@ -201,7 +201,7 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	manufacturer := info["Manufacturer"]
 	//TODO: currently we can't handle this correctly as we can't read the state on most hardware
 	//led, ok := info["Chassis Identify State"]
-	led := "Unknown"
+	led := ""
 
 	//TODO: properly detect if sol is supported
 	return Info{
