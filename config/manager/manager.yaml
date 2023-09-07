@@ -30,14 +30,11 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /manager
+        - /oob-operator
         args:
         - --leader-elect
         image: controller:latest
         name: manager
-        env:
-        - name: ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH
-          value: go1.19
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

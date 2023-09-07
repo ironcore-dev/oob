@@ -1,11 +1,11 @@
 package controllers
 
 import (
+	"net/netip"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"inet.af/netaddr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,8 +38,6 @@ var _ = Describe("IP controller", func() {
 	var res reconcile.Result
 	var err error
 	BeforeEach(func() {
-		netaddrIP, e := netaddr.ParseIP("1.2.3.4")
-		Expect(e).NotTo(HaveOccurred())
 		ip = &ipamv1alpha1.IP{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: ipamv1alpha1.GroupVersion.String(),
@@ -54,7 +52,7 @@ var _ = Describe("IP controller", func() {
 			},
 			Spec: ipamv1alpha1.IPSpec{
 				IP: &ipamv1alpha1.IPAddr{
-					Net: netaddrIP,
+					Net: netip.MustParseAddr("1.2.3.4"),
 				},
 			},
 		}

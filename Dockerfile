@@ -1,4 +1,4 @@
-# Build the manager binary
+# Build the oob-operator binary
 FROM golang:1.21 as builder
 
 ARG TARGETARCH
@@ -21,10 +21,12 @@ COPY api/ api/
 COPY bmc/ bmc/
 COPY controllers/ controllers/
 COPY log/ log/
+COPY servers/ servers/
 COPY *.go ./
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-operator main.go
 
+RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat go get github.com/onmetal/oob-console && go install github.com/onmetal/oob-console
 
 FROM debian:bookworm-20230904-slim
 
@@ -35,6 +37,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER 65532:65532
-ENTRYPOINT ["/manager"]
+ENTRYPOINT ["/oob-operator"]
 
-COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/oob-operator .
+COPY --from=builder /go/bin/oob-console .

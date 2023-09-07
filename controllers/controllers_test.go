@@ -47,7 +47,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(os.Setenv("KUBEBUILDER_ASSETS", string(path))).To(Succeed())
 
-	ctx, cancel := context.WithCancel(log.Setup(context.Background(), true, GinkgoWriter))
+	ctx, cancel := context.WithCancel(log.Setup(context.Background(), true, false, GinkgoWriter))
 	DeferCleanup(cancel)
 	l := logr.FromContextOrDiscard(ctx)
 	klog.SetLogger(l)

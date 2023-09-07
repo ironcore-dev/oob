@@ -9,8 +9,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func Setup(ctx context.Context, dev bool, writer io.Writer) context.Context {
+func Setup(ctx context.Context, dev, silent bool, writer io.Writer) context.Context {
 	var zeroLog zerolog.Logger
+
+	if silent {
+		return logr.NewContext(ctx, logr.Discard())
+	}
 
 	if dev {
 		cw := zerolog.ConsoleWriter{
