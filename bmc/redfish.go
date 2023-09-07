@@ -574,44 +574,22 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 	defer c.Logout()
 
 	log.Debug(ctx, "Reading BMC info")
-	chassis, err := c.Service.Chassis()
-	if err != nil {
-		return Info{}, fmt.Errorf("cannot get chassis information: %w", err)
-	}
-	if len(chassis) == 0 {
-		return Info{}, fmt.Errorf("cannot get chassis information")
-	}
 	systems, err := c.Service.Systems()
 	if err != nil {
 		return Info{}, fmt.Errorf("cannot get systems information: %w", err)
 	}
+	if len(systems) == 0 {
+		return Info{}, fmt.Errorf("cannot get systems information")
+	}
 
-	uuid := chassis[0].UUID
+	uuid := systems[0].UUID
 	if uuid == "" {
-		log.Debug(ctx, "Reading UUID")
-		response, err := c.Get("/redfish/v1/Systems/Self")
-		if err != nil {
-			return Info{}, fmt.Errorf("cannot perform GET request: %w", err)
-		}
-		defer func() { must(ctx, response.Body.Close()) }()
-
-		m := make(map[string]interface{})
-		err = json.NewDecoder(response.Body).Decode(&m)
-		if err != nil {
-			return Info{}, fmt.Errorf("cannot decode response body: %w", err)
-		}
-
-		id, ok := m["UUID"]
-		if !ok {
-			return Info{}, fmt.Errorf("BMC has no UUID attribute")
-		}
-
-		uuid = fmt.Sprintf("%v", id)
+		return Info{}, fmt.Errorf("BMC has no UUID attribute")
 	}
 	uuid = strings.ToLower(uuid)
 
 	var led string
-	switch led = string(chassis[0].IndicatorLED); led {
+	switch led = string(systems[0].IndicatorLED); led {
 	case "Blinking":
 		led = "Blinking"
 	case "Lit":
@@ -656,7 +634,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 		}
 	}
 
-	manufacturer := chassis[0].Manufacturer
+	manufacturer := systems[0].Manufacturer
 	capabilities := []string{"credentials", "power", "led"}
 	console := ""
 
@@ -681,11 +659,11 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 		UUID:         uuid,
 		Type:         "BMC",
 		Capabilities: capabilities,
-		SerialNumber: chassis[0].SerialNumber,
-		SKU:          chassis[0].SKU,
+		SerialNumber: systems[0].SerialNumber,
+		SKU:          systems[0].SKU,
 		Manufacturer: manufacturer,
 		LocatorLED:   led,
-		Power:        fmt.Sprintf("%v", chassis[0].PowerState),
+		Power:        fmt.Sprintf("%v", systems[0].PowerState),
 		OS:           os,
 		OSReason:     osReason,
 		Console:      console,
