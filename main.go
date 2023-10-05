@@ -35,6 +35,7 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	computev1alpha1 "github.com/onmetal/onmetal-api/api/compute/v1alpha1"
@@ -159,7 +160,9 @@ func main() {
 		LeaderElection:         p.leaderElect,
 		LeaderElectionID:       "125e56fc.onmetal.de",
 		HealthProbeBindAddress: p.healthProbeBindAddress,
-		MetricsBindAddress:     p.metricsBindAddress,
+		Metrics: server.Options{
+			BindAddress: p.metricsBindAddress,
+		},
 	})
 	if err != nil {
 		log.Error(ctx, fmt.Errorf("cannot create manager: %w", err))

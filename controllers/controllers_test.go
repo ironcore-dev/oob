@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
@@ -75,8 +76,10 @@ var _ = BeforeSuite(func() {
 
 	var mgr manager.Manager
 	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: "0",
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
 	})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
