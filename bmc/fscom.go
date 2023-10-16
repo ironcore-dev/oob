@@ -51,22 +51,6 @@ func (b *FSCOMBMC) Tags() map[string]string {
 	return b.tags
 }
 
-func (b *FSCOMBMC) LEDControl() LEDControl {
-	return nil
-}
-
-func (b *FSCOMBMC) PowerControl() PowerControl {
-	return nil
-}
-
-func (b *FSCOMBMC) ResetControl() ResetControl {
-	return nil
-}
-
-func (b *FSCOMBMC) NTPControl() NTPControl {
-	return nil
-}
-
 func (b *FSCOMBMC) Credentials() (Credentials, time.Time) {
 	return b.creds, b.exp
 }

@@ -34,10 +34,6 @@ type BMC interface {
 	CreateUser(ctx context.Context, creds Credentials, tempPassword string) error
 	DeleteUsers(ctx context.Context, regex *regexp.Regexp) error
 	ReadInfo(ctx context.Context) (Info, error)
-	LEDControl() LEDControl
-	PowerControl() PowerControl
-	ResetControl() ResetControl
-	NTPControl() NTPControl
 }
 
 type LEDControl interface {
