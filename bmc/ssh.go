@@ -55,22 +55,6 @@ func (b *SSHBMC) Tags() map[string]string {
 	return b.tags
 }
 
-func (b *SSHBMC) LEDControl() LEDControl {
-	return nil
-}
-
-func (b *SSHBMC) PowerControl() PowerControl {
-	return nil
-}
-
-func (b *SSHBMC) ResetControl() ResetControl {
-	return nil
-}
-
-func (b *SSHBMC) NTPControl() NTPControl {
-	return nil
-}
-
 func (b *SSHBMC) Credentials() (Credentials, time.Time) {
 	return b.creds, b.exp
 }

@@ -992,8 +992,8 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 }
 
 func (r *OOBReconciler) setNTPServers(ctx context.Context, bmctrl bmc.BMC) error {
-	ntpc := bmctrl.NTPControl()
-	if ntpc != nil {
+	ntpc, ok := bmctrl.(bmc.NTPControl)
+	if ok {
 		err := ntpc.SetNTPServers(ctx, r.ntpServers)
 		if err != nil {
 			return fmt.Errorf("cannot set NTP servers: %w", err)
@@ -1108,8 +1108,8 @@ func (r *OOBReconciler) applyLocatorLED(ctx context.Context, oob *oobv1alpha1.OO
 	}
 
 	// If LED control is not supported, clear the request
-	lc := bmctrl.LEDControl()
-	if lc == nil {
+	lc, ok := bmctrl.(bmc.LEDControl)
+	if !ok {
 		log.Info(ctx, "LED control is not supported")
 		oob.Spec.LocatorLED = "None"
 		*specChanged = true
@@ -1134,8 +1134,8 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 	}
 
 	// If power control is not supported, clear the request
-	pc := bmctrl.PowerControl()
-	if pc == nil {
+	pc, ok := bmctrl.(bmc.PowerControl)
+	if !ok {
 		log.Info(ctx, "Power control is not supported")
 		oob.Spec.Power = "None"
 		*specChanged = true
@@ -1273,8 +1273,8 @@ func (r *OOBReconciler) applyReset(ctx context.Context, oob *oobv1alpha1.OOB, bm
 	}
 
 	// If power control is not supported, clear the request
-	rc := bmctrl.ResetControl()
-	if rc == nil {
+	rc, ok := bmctrl.(bmc.ResetControl)
+	if !ok {
 		log.Info(ctx, "Reset control is not supported")
 		oob.Spec.Reset = "None"
 		*specChanged = true

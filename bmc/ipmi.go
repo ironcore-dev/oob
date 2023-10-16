@@ -55,20 +55,12 @@ func (b *IPMIBMC) Tags() map[string]string {
 	return b.tags
 }
 
-func (b *IPMIBMC) LEDControl() LEDControl {
-	return nil
-}
-
 func (b *IPMIBMC) PowerControl() PowerControl {
 	return b
 }
 
 func (b *IPMIBMC) ResetControl() ResetControl {
 	return b
-}
-
-func (b *IPMIBMC) NTPControl() NTPControl {
-	return nil
 }
 
 func (b *IPMIBMC) Credentials() (Credentials, time.Time) {
