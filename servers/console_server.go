@@ -34,15 +34,14 @@ import (
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/remotecommand"
+	kremotecommand "k8s.io/kubelet/pkg/cri/streaming/remotecommand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	computev1alpha1 "github.com/onmetal/onmetal-api/api/compute/v1alpha1"
 	"github.com/onmetal/oob-operator/log"
-	virtlethttp "github.com/onmetal/virtlet/machinepoolletutils/terminal/http"
 )
 
-// TODO: Remove dependency on virtlet
 // TODO: Integrate oob-console into this codebase
 
 //+kubebuilder:rbac:groups=compute.api.onmetal.de,resources=machines,verbs=get;list;watch
@@ -115,16 +114,17 @@ func (s *ConsoleServer) Start(ctx context.Context) error {
 }
 
 func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
-	opts := &virtlethttp.Options{
+	ctx := req.Context()
+	c := &console{}
+	opts := &kremotecommand.Options{
 		Stdin:  true,
 		Stdout: true,
 		TTY:    true,
 	}
 	supportedStreamProtocols := strings.Split(req.Header.Get("X-Stream-Protocol-Version"), ",")
-	c := &console{
-		ctx: req.Context(),
-	}
-	defer virtlethttp.Serve(w, req, c, opts, time.Minute*60, time.Minute, supportedStreamProtocols)
+	defer func() {
+		kremotecommand.ServeExec(w, req.WithContext(ctx), c, "", "", "", []string{}, opts, time.Minute*60, time.Minute, supportedStreamProtocols)
+	}()
 
 	id := make([]byte, 4)
 	n, err := rand.Read(id)
@@ -132,7 +132,7 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 		c.err = fmt.Errorf("cannot generate request id: %w", err)
 		return
 	}
-	c.ctx = log.WithValues(req.Context(), "requestID", fmt.Sprintf("%x", id))
+	ctx = log.WithValues(ctx, "requestID", fmt.Sprintf("%x", id))
 
 	vars := mux.Vars(req)
 	namespace := vars["namespace"]
@@ -141,10 +141,10 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 		c.err = fmt.Errorf("machine name not specified")
 		return
 	}
-	c.ctx = log.WithValues(c.ctx, "namespace", namespace, "machine", machineName)
+	ctx = log.WithValues(ctx, "namespace", namespace, "machine", machineName)
 
 	var machine computev1alpha1.Machine
-	err = s.Get(c.ctx, types.NamespacedName{Namespace: namespace, Name: machineName}, &machine)
+	err = s.Get(ctx, types.NamespacedName{Namespace: namespace, Name: machineName}, &machine)
 	if err != nil {
 		c.err = fmt.Errorf("cannot get machine: %w", err)
 		return
@@ -155,14 +155,14 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var pool computev1alpha1.MachinePool
-	err = s.Get(c.ctx, types.NamespacedName{Name: machine.Spec.MachinePoolRef.Name}, &pool)
+	err = s.Get(ctx, types.NamespacedName{Name: machine.Spec.MachinePoolRef.Name}, &pool)
 	if err != nil {
 		c.err = fmt.Errorf("cannot get machine pool: %w", err)
 		return
 	}
 
-	c.oob = pool.Annotations["metal-api.onmetal.de/oob-name"]
-	if c.oob == "" {
+	c.name = pool.Annotations["metal-api.onmetal.de/oob-name"]
+	if c.name == "" {
 		c.err = fmt.Errorf("machine pool does not have metal-api.onmetal.de/oob-name annotation")
 		return
 	}
@@ -173,32 +173,34 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	c.ctx = log.WithValues(c.ctx, "oob", c.oob, "oobNamespace", c.namespace)
+	ctx = log.WithValues(ctx, "oob", c.name, "oobNamespace", c.namespace)
 }
 
 type console struct {
-	ctx       context.Context
+	name      string
 	namespace string
-	oob       string
 	err       error
 }
 
-func (c *console) Run(in io.Reader, out, _ io.WriteCloser, resize <-chan remotecommand.TerminalSize) error {
+func (c *console) ExecInContainer(ctx context.Context, _ string, _ types.UID, _ string, _ []string, in io.Reader, out, _ io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize, _ time.Duration) error {
 	if c.err != nil {
 		return c.err
 	}
+	if !tty {
+		return fmt.Errorf("console access requires a TTY")
+	}
 
 	var stop context.CancelFunc
-	c.ctx, stop = context.WithCancel(c.ctx)
+	ctx, stop = context.WithCancel(ctx)
 	defer stop()
 
-	cmd := exec.CommandContext(c.ctx, "./oob-console", "--silent", fmt.Sprintf("-n=%s", c.namespace), c.oob)
+	cmd := exec.CommandContext(ctx, "./oob-console", "--silent", fmt.Sprintf("-n=%s", c.namespace), c.name)
 	cmd.WaitDelay = time.Second * 7
 	cmd.Cancel = func() error {
-		log.Debug(c.ctx, "Sending SIGTERM to console process")
+		log.Debug(ctx, "Sending SIGTERM to console process")
 		return cmd.Process.Signal(syscall.SIGTERM)
 	}
-	log.Info(c.ctx, "Running console")
+	log.Info(ctx, "Running console")
 	ptyf, err := pty.Start(cmd)
 	if err != nil {
 		return fmt.Errorf("cannot run command: %w", err)
@@ -207,7 +209,7 @@ func (c *console) Run(in io.Reader, out, _ io.WriteCloser, resize <-chan remotec
 
 	var closeOnce sync.Once
 	closeF := func() {
-		log.Debug(c.ctx, "Sending SIGHUP to console process")
+		log.Debug(ctx, "Sending SIGHUP to console process")
 		_ = cmd.Process.Signal(syscall.SIGHUP)
 		_ = out.Close()
 		_ = ptyf.Close()
@@ -229,16 +231,16 @@ func (c *console) Run(in io.Reader, out, _ io.WriteCloser, resize <-chan remotec
 					Cols: ts.Width,
 				})
 				if szErr != nil {
-					log.Error(c.ctx, fmt.Errorf("cannot resize console PTY: %w", szErr))
+					log.Error(ctx, fmt.Errorf("cannot resize console PTY: %w", szErr))
 				}
-			case <-c.ctx.Done():
+			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
 	_ = cmd.Wait()
-	log.Info(c.ctx, "Console finished")
+	log.Info(ctx, "Console finished")
 
 	return nil
 }
