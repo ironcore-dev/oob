@@ -150,7 +150,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 
 	// Apply the OOB status
 	log.Info(ctx, "Applying OOB status")
-	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), forceOwnershipUglyWorkaround)
+	err = r.Status().Patch(ctx, oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/ip"), client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 	}

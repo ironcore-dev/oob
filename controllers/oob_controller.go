@@ -294,7 +294,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), forceOwnershipUglyWorkaround)
+		err = r.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -368,7 +368,7 @@ func (r *OOBReconciler) applyCondition(ctx context.Context, oob *oobv1alpha1.OOB
 
 	// Apply the OOB status
 	log.Info(ctx, "Applying OOB status")
-	err := r.Status().Patch(ctx, oobNext, client.Apply, owner, forceOwnershipUglyWorkaround)
+	err := r.Status().Patch(ctx, oobNext, client.Apply, owner, client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB status: %w", err)
 	}
@@ -539,7 +539,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), forceOwnershipUglyWorkaround)
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), client.ForceOwnership)
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -808,7 +808,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), forceOwnershipUglyWorkaround)
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -931,7 +931,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the status
 	log.Info(ctx, "Applying OOB status")
-	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), forceOwnershipUglyWorkaround)
+	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB status: %w", err)
 	}
