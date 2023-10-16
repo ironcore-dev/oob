@@ -5,7 +5,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func newRandInt64() *int64 {
@@ -36,13 +35,4 @@ func setCondition(conds []metav1.Condition, cond metav1.Condition) []metav1.Cond
 	}
 
 	return []metav1.Condition{cond}
-}
-
-// TODO: Remove this ugly workaround for https://github.com/kubernetes-sigs/controller-runtime/issues/2125
-type fouw struct{}
-
-var forceOwnershipUglyWorkaround = fouw{}
-
-func (fouw) ApplyToSubResourcePatch(opts *client.SubResourcePatchOptions) {
-	opts.Force = &(&struct{ x bool }{true}).x
 }

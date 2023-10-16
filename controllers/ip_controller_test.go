@@ -173,7 +173,7 @@ var _ = Describe("IP controller", func() {
 						Mac: "012345abcdef",
 					},
 				}
-				Expect(k8sClient.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("test"), forceOwnershipUglyWorkaround)).To(Succeed())
+				Expect(k8sClient.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
 					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
 					g.Expect(oob.Status.IP).To(Equal("1.2.3.4"))
@@ -266,7 +266,7 @@ var _ = Describe("IP controller", func() {
 						Mac: "012345abcdef",
 					},
 				}
-				Expect(k8sClient.Status().Patch(ctx, &oob0, client.Apply, client.FieldOwner("test"), forceOwnershipUglyWorkaround)).To(Succeed())
+				Expect(k8sClient.Status().Patch(ctx, &oob0, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
 					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob0"}, &oob0)).To(Succeed())
 					g.Expect(oob0.Status.Mac).To(Equal("012345abcdef"))
@@ -312,7 +312,7 @@ var _ = Describe("IP controller", func() {
 							Mac: "012345abcdef",
 						},
 					}
-					Expect(k8sClient.Status().Patch(ctx, &oob1, client.Apply, client.FieldOwner("test"), forceOwnershipUglyWorkaround)).To(Succeed())
+					Expect(k8sClient.Status().Patch(ctx, &oob1, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 					Eventually(func(g Gomega, ctx SpecContext) {
 						g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
 						g.Expect(oob1.Status.Mac).To(Equal("012345abcdef"))
