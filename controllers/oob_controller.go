@@ -289,6 +289,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 				OSReason:         oob.Status.OSReason,
 				OSReadDeadline:   oob.Status.OSReadDeadline,
 				Console:          oob.Status.Console,
+				FWVersion:        oob.Status.FWVersion,
 			},
 		}
 
@@ -1007,13 +1008,14 @@ func (r *OOBReconciler) setStatusFields(oob *oobv1alpha1.OOB, info *bmc.Info, re
 	statusChanged := false
 
 	// Fill in all non-modifiable fields
-	if oob.Status.Type != info.Type || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU || oob.Status.Console != info.Console {
+	if oob.Status.Type != info.Type || !slices.Equal(oob.Status.Capabilities, info.Capabilities) || oob.Status.Manufacturer != info.Manufacturer || oob.Status.SerialNumber != info.SerialNumber || oob.Status.SKU != info.SKU || oob.Status.Console != info.Console || oob.Status.FWVersion != info.FWVersion {
 		oob.Status.Type = info.Type
 		oob.Status.Capabilities = info.Capabilities
 		oob.Status.Manufacturer = info.Manufacturer
 		oob.Status.SKU = info.SKU
 		oob.Status.SerialNumber = info.SerialNumber
 		oob.Status.Console = info.Console
+		oob.Status.FWVersion = info.FWVersion
 		statusChanged = true
 	}
 

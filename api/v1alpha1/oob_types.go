@@ -119,6 +119,10 @@ type OOBStatus struct {
 
 	//+optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+
+	//+optional
+	//+kubebuilder:validation:MinLength=1
+	FWVersion string `json:"fwVersion,omitempty"`
 }
 
 //+kubebuilder:object:root=true

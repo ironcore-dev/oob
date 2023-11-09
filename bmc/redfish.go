@@ -637,6 +637,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 	manufacturer := systems[0].Manufacturer
 	capabilities := []string{"credentials", "power", "led"}
 	console := ""
+	fw := ""
 
 	mgr, err := c.Service.Managers()
 	if err != nil {
@@ -652,6 +653,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 				capabilities = append(capabilities, "console")
 				console = "ipmi"
 			}
+			fw = mgr[0].FirmwareVersion
 		}
 	}
 
@@ -667,6 +669,7 @@ func (b *RedfishBMC) ReadInfo(ctx context.Context) (Info, error) {
 		OS:           os,
 		OSReason:     osReason,
 		Console:      console,
+		FWVersion:    fw,
 	}, nil
 }
 
