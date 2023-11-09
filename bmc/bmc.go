@@ -89,6 +89,7 @@ type Info struct {
 	OS           string
 	OSReason     string
 	Console      string
+	FWVersion    string
 }
 
 func must(ctx context.Context, err error) {

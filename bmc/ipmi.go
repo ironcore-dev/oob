@@ -179,6 +179,12 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	}
 	outputmap(out, &info)
 
+	out, serr, err = ipmiExecuteCommand(ctx, b.host, b.port, b.creds, "ipmitool", "bmc", "info")
+	if err != nil {
+		return Info{}, fmt.Errorf("cannot get bmc info, stderr: %s: %w", serr, err)
+	}
+	outputmap(out, &info)
+
 	uuid, ok := info["System GUID"]
 	if !ok {
 		return Info{}, fmt.Errorf("cannot determine uuid for machine")
@@ -194,6 +200,7 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 	//TODO: currently we can't handle this correctly as we can't read the state on most hardware
 	//led, ok := info["Chassis Identify State"]
 	led := ""
+	fw := info["Firmware Revision"]
 
 	//TODO: properly detect if sol is supported
 	return Info{
@@ -206,6 +213,7 @@ func (b *IPMIBMC) ReadInfo(ctx context.Context) (Info, error) {
 		LocatorLED:   led,
 		Power:        cases.Title(language.English).String(powerstate),
 		Console:      "ipmi",
+		FWVersion:    fw,
 	}, nil
 }
 
