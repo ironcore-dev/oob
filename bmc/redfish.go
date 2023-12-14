@@ -92,11 +92,27 @@ var (
 	userIdRegex = regexp.MustCompile(`/redfish/v1/AccountService/Accounts/([0-9]{1,2})`)
 )
 
+// TODO: add specific fields for Lenovo/Dell
 type redfishUser struct {
-	UserName string `json:"UserName"`
-	RoleID   string `json:"RoleId"`
-	Password string `json:"Password"`
-	Enabled  bool   `json:"Enabled"`
+	Oem      *redfishUserOEM `json:"Oem,omitempty"`
+	UserName string          `json:"UserName"`
+	RoleID   string          `json:"RoleId,omitempty"`
+	Password string          `json:"Password"`
+	Enabled  bool            `json:"Enabled,omitempty"`
+}
+
+type redfishUserOEM struct {
+	Hp struct {
+		LoginName  string `json:"LoginName,omitempty"`
+		Privileges struct {
+			LoginPriv                bool `json:"LoginPriv,omitempty"`
+			RemoteConsolePriv        bool `json:"RemoteConsolePriv,omitempty"`
+			UserConfigPriv           bool `json:"UserConfigPriv,omitempty"`
+			VirtualMediaPriv         bool `json:"VirtualMediaPriv,omitempty"`
+			VirtualPowerAndResetPriv bool `json:"VirtualPowerAndResetPriv,omitempty"`
+			ILOConfigPriv            bool `json:"iLOConfigPriv,omitempty"`
+		} `json:"Privileges,omitempty"`
+	} `json:"Hp,omitempty"`
 }
 
 func redfishConnect(ctx context.Context, host string, port int, creds Credentials) (*gofish.APIClient, error) {
@@ -311,7 +327,35 @@ func redfishGetFreeID(accounts []*redfish.ManagerAccount) (string, error) {
 func redfishCreateUserPost(ctx context.Context, c *gofish.APIClient, creds Credentials) (string, error) {
 	log.Debug(ctx, "Creating user", "type", "POST", "user", creds.Username)
 
-	u := redfishUser{UserName: creds.Username, RoleID: "Administrator", Password: creds.Password, Enabled: true}
+	systems, err := c.Service.Systems()
+	if err != nil {
+		return "", fmt.Errorf("cannot get systems information: %w", err)
+	}
+
+	mnf := ""
+	for _, s := range systems {
+		mnf = s.Manufacturer
+		if mnf != "" {
+			break
+		}
+	}
+
+	u := redfishUser{UserName: creds.Username, Password: creds.Password}
+	// TODO: add specific code for Dell and Lenovo
+	if mnf == "HPE" {
+		u.Oem = &redfishUserOEM{}
+		u.Oem.Hp.LoginName = creds.Username
+		u.Oem.Hp.Privileges.LoginPriv = true
+		u.Oem.Hp.Privileges.RemoteConsolePriv = true
+		u.Oem.Hp.Privileges.UserConfigPriv = true
+		u.Oem.Hp.Privileges.VirtualMediaPriv = true
+		u.Oem.Hp.Privileges.VirtualPowerAndResetPriv = true
+		u.Oem.Hp.Privileges.ILOConfigPriv = true
+	} else {
+		u.RoleID = "Administrator"
+		u.Enabled = true
+	}
+
 	response, err := c.Post("/redfish/v1/AccountService/Accounts", u)
 	if err != nil {
 		return "", fmt.Errorf("cannot perform POST request: %w", err)
