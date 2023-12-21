@@ -31,16 +31,24 @@ import (
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/condition"
+	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/onmetal/oob-operator/internal/rand"
 )
 
 //+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips,verbs=get;list;watch
 //+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips/status,verbs=get
 
+func NewIPReconciler(namespace string) (*IPReconciler, error) {
+	return &IPReconciler{
+		namespace: namespace,
+	}, nil
+}
+
 // IPReconciler reconciles a IP object.
 type IPReconciler struct {
 	client.Client
-	Namespace   string
+	namespace   string
 	disabled    bool
 	disabledMtx sync.RWMutex
 	macRegex    *regexp.Regexp
@@ -140,7 +148,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		Status: oobv1alpha1.OOBStatus{
 			IP:  ip.Spec.IP.String(),
 			Mac: mac,
-			Conditions: setCondition(oob.Status.Conditions, metav1.Condition{
+			Conditions: condition.SetCondition(oob.Status.Conditions, metav1.Condition{
 				Type:   "Ready",
 				Status: "False",
 				Reason: "NewIP",
@@ -166,7 +174,7 @@ func (r *IPReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 			Name:      oob.Name,
 		},
 		Spec: oobv1alpha1.OOBSpec{
-			Filler: newRandInt64(),
+			Filler: rand.NewRandInt64(),
 		},
 	}
 
@@ -233,10 +241,10 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	inCorrectNamespacePredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return r.Namespace == "" || e.Object.GetNamespace() == r.Namespace
+			return r.namespace == "" || e.Object.GetNamespace() == r.namespace
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return r.Namespace == "" || e.ObjectNew.GetNamespace() == r.Namespace
+			return r.namespace == "" || e.ObjectNew.GetNamespace() == r.namespace
 		},
 	}
 

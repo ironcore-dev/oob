@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +38,9 @@ import (
 
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
 	"github.com/onmetal/oob-operator/bmc"
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/condition"
+	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/onmetal/oob-operator/internal/rand"
 )
 
 //+kubebuilder:rbac:groups=onmetal.de,resources=oobs,verbs=get;list;watch;create;update;patch;delete
@@ -47,12 +48,20 @@ import (
 //+kubebuilder:rbac:groups=onmetal.de,resources=oobs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+func NewOOBReconciler(namespace string, credentialsExpBuffer, shutdownTimeout time.Duration) (*OOBReconciler, error) {
+	return &OOBReconciler{
+		namespace:            namespace,
+		credentialsExpBuffer: credentialsExpBuffer,
+		shutdownTimeout:      shutdownTimeout,
+	}, nil
+}
+
 // OOBReconciler reconciles a OOB object
 type OOBReconciler struct {
 	client.Client
-	Namespace            string
-	CredentialsExpBuffer time.Duration
-	ShutdownTimeout      time.Duration
+	namespace            string
+	credentialsExpBuffer time.Duration
+	shutdownTimeout      time.Duration
 	disabled             bool
 	disabledMtx          sync.RWMutex
 	macPrefixes          prefixMap
@@ -363,7 +372,7 @@ func (r *OOBReconciler) applyCondition(ctx context.Context, oob *oobv1alpha1.OOB
 			Name:      oob.Name,
 		},
 		Status: oobv1alpha1.OOBStatus{
-			Conditions: setCondition(oob.Status.Conditions, cond),
+			Conditions: condition.SetCondition(oob.Status.Conditions, cond),
 		},
 	}
 
@@ -422,7 +431,7 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 			Power:      oob.Spec.Power,
 			Reset:      oob.Spec.Reset,
 			//Filler:		oob.Spec.Filler, //TODO: see above
-			Filler: newRandInt64(),
+			Filler: rand.NewRandInt64(),
 		},
 	}
 
@@ -583,7 +592,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 	// If the credentials have expired (or are initial) create a new set of credentials
 	if !exp.IsZero() {
-		timeToRenew := exp.Add(-r.CredentialsExpBuffer)
+		timeToRenew := exp.Add(-r.credentialsExpBuffer)
 		if timeToRenew.Before(now) {
 			log.Info(ctx, "Creating new credentials", "expired", exp)
 
@@ -622,7 +631,7 @@ func (r *OOBReconciler) getCredentials(ctx context.Context, oob *oobv1alpha1.OOB
 
 	// Get the secret
 	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: oob.Namespace, Name: oob.Status.Mac}, secret)
+	err := r.Get(ctx, client.ObjectKey{Namespace: oob.Namespace, Name: oob.Status.Mac}, secret)
 	if err != nil {
 		return bmc.Credentials{}, time.Time{}, nil, fmt.Errorf("cannot get credentials secret: %w", err)
 	}
@@ -978,7 +987,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 			Name:      name,
 		},
 		Spec: oobv1alpha1.OOBSpec{
-			Filler: newRandInt64(),
+			Filler: rand.NewRandInt64(),
 		},
 	}
 
@@ -1198,7 +1207,7 @@ func (r *OOBReconciler) applyPower(ctx context.Context, oob *oobv1alpha1.OOB, bm
 				if err != nil {
 					return fmt.Errorf("cannot power off machine: %w", err)
 				}
-				oob.Status.ShutdownDeadline = &metav1.Time{Time: now.Add(r.ShutdownTimeout)}
+				oob.Status.ShutdownDeadline = &metav1.Time{Time: now.Add(r.shutdownTimeout)}
 				*statusChanged = true
 			} else if oob.Status.ShutdownDeadline.Before(&now) {
 				log.Info(ctx, "Shutdown deadline exceeded, shutting down forcefully")
@@ -1354,10 +1363,10 @@ func (r *OOBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	inCorrectNamespacePredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			return r.Namespace == "" || e.Object.GetNamespace() == r.Namespace
+			return r.namespace == "" || e.Object.GetNamespace() == r.namespace
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			return r.Namespace == "" || e.ObjectNew.GetNamespace() == r.Namespace
+			return r.namespace == "" || e.ObjectNew.GetNamespace() == r.namespace
 		},
 	}
 
