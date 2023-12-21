@@ -24,7 +24,7 @@ import (
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/log"
 )
 
 var (
@@ -84,13 +84,12 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
 
-	ipReconciler = &IPReconciler{}
+	ipReconciler, err = NewIPReconciler("")
+	Expect(err).NotTo(HaveOccurred())
 	Expect(ipReconciler.SetupWithManager(mgr)).To(Succeed())
 
-	oobReconciler = &OOBReconciler{
-		CredentialsExpBuffer: 7 * time.Second,
-		ShutdownTimeout:      3 * time.Second,
-	}
+	oobReconciler, err = NewOOBReconciler("", 7*time.Second, 3*time.Second)
+	Expect(err).NotTo(HaveOccurred())
 	Expect(oobReconciler.LoadMACPrefixes(ctx, "../test/macPrefixes.yaml")).To(Succeed())
 	Expect(oobReconciler.SetupWithManager(mgr)).To(Succeed())
 

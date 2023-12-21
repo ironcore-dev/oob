@@ -30,18 +30,19 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	computev1alpha1 "github.com/onmetal/onmetal-api/api/compute/v1alpha1"
 	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
 	"github.com/onmetal/oob-operator/controllers"
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/log"
 	"github.com/onmetal/oob-operator/servers"
 )
 
@@ -81,8 +82,8 @@ func parseCmdLine() params {
 
 	pflag.Bool("dev", false, "Log human-readable messages at debug level.")
 	pflag.Bool("leader-elect", false, "Enable leader election for controller manager to ensure there is only one active controller manager.")
-	pflag.String("health-probe-bind-address", "", "The address and port for the probe endpoint.")
-	pflag.String("metrics-bind-address", "0", "The address and port for the metrics endpoint.")
+	pflag.String("health-probe-bind-address", "", "The address that the health probe server will listen on.")
+	pflag.String("metrics-bind-address", "0", "The address that the metrics server will listen on.")
 	pflag.String("kubeconfig", "", "Use a kubeconfig to run out of cluster.")
 	pflag.String("namespace", "", "Limit monitoring to a specific namespace.")
 	pflag.String("mac-prefixes", "macPrefixes.yaml", "Read MAC address prefixes from the specified file.")
@@ -93,10 +94,13 @@ func parseCmdLine() params {
 
 	var help bool
 	pflag.BoolVarP(&help, "help", "h", false, "Show this help message.")
-	utilruntime.Must(viper.BindPFlags(pflag.CommandLine))
+	err := viper.BindPFlags(pflag.CommandLine)
+	if err != nil {
+		exitUsage(err)
+	}
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
-	err := pflag.CommandLine.Parse(os.Args[1:])
+	err = pflag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
 		exitUsage(err)
 	}
@@ -136,14 +140,35 @@ func main() {
 	ctrl.SetLogger(l)
 
 	scheme := runtime.NewScheme()
-	utilruntime.Must(kscheme.AddToScheme(scheme))
-	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(oobv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(computev1alpha1.AddToScheme(scheme))
+	err := kscheme.AddToScheme(scheme)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create type scheme: %w", err))
+		exitCode = 1
+		return
+	}
+	err = ipamv1alpha1.AddToScheme(scheme)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create type scheme: %w", err))
+		exitCode = 1
+		return
+	}
+	err = oobv1alpha1.AddToScheme(scheme)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create type scheme: %w", err))
+		exitCode = 1
+		return
+	}
+	err = computev1alpha1.AddToScheme(scheme)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create type scheme: %w", err))
+		exitCode = 1
+		return
+	}
 	//+kubebuilder:scaffold:scheme
 
 	if p.namespace == "" {
-		ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		var ns []byte
+		ns, err = os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 		if err != nil && !os.IsNotExist(err) {
 			log.Error(ctx, fmt.Errorf("cannot determine in-cluster namespace: %w", err))
 			exitCode = 1
@@ -152,13 +177,22 @@ func main() {
 		p.namespace = string(ns)
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	var kcfg *rest.Config
+	kcfg, err = ctrl.GetConfig()
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot get kubeconfig: %w", err))
+		exitCode = 1
+		return
+	}
+
+	var mgr manager.Manager
+	mgr, err = ctrl.NewManager(kcfg, ctrl.Options{
 		BaseContext: func() context.Context {
 			return ctx
 		},
 		Scheme:                 scheme,
 		LeaderElection:         p.leaderElect,
-		LeaderElectionID:       "125e56fc.onmetal.de",
+		LeaderElectionID:       "oob.onmetal.de",
 		HealthProbeBindAddress: p.healthProbeBindAddress,
 		Metrics: server.Options{
 			BindAddress: p.metricsBindAddress,
@@ -170,8 +204,12 @@ func main() {
 		return
 	}
 
-	ipReconciler := &controllers.IPReconciler{
-		Namespace: p.namespace,
+	var ipReconciler *controllers.IPReconciler
+	ipReconciler, err = controllers.NewIPReconciler(p.namespace)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create controller: %w", err), "controller", "IP")
+		exitCode = 1
+		return
 	}
 	err = ipReconciler.SetupWithManager(mgr)
 	if err != nil {
@@ -180,10 +218,12 @@ func main() {
 		return
 	}
 
-	oobReconciler := &controllers.OOBReconciler{
-		Namespace:            p.namespace,
-		CredentialsExpBuffer: p.credentialsExpBuffer,
-		ShutdownTimeout:      p.shutdownTimeout,
+	var oobReconciler *controllers.OOBReconciler
+	oobReconciler, err = controllers.NewOOBReconciler(p.namespace, p.credentialsExpBuffer, p.shutdownTimeout)
+	if err != nil {
+		log.Error(ctx, fmt.Errorf("cannot create controller: %w", err), "controller", "OOB")
+		exitCode = 1
+		return
 	}
 	if p.macPrefixes != "" {
 		err = oobReconciler.LoadMACPrefixes(ctx, p.macPrefixes)
@@ -201,10 +241,12 @@ func main() {
 	}
 
 	if p.consoleServerCert != "" && p.consoleServerKey != "" {
-		consoleServer := &servers.ConsoleServer{
-			Address: ":12319",
-			TLSCert: p.consoleServerCert,
-			TLSKey:  p.consoleServerKey,
+		var consoleServer *servers.ConsoleServer
+		consoleServer, err = servers.NewConsoleServer(":12319", p.consoleServerCert, p.consoleServerKey)
+		if err != nil {
+			log.Error(ctx, fmt.Errorf("cannot create server: %w", err), "server", "console")
+			exitCode = 1
+			return
 		}
 		err = consoleServer.SetupWithManager(mgr)
 		if err != nil {
@@ -233,7 +275,7 @@ func main() {
 	log.Info(ctx, "Starting manager")
 	err = mgr.Start(ctx)
 	if err != nil {
-		log.Error(ctx, fmt.Errorf("cannot start manager: %w", err))
+		log.Error(ctx, err)
 		exitCode = 1
 		return
 	}

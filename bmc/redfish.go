@@ -35,7 +35,7 @@ import (
 	"github.com/stmcginnis/gofish/common"
 	"github.com/stmcginnis/gofish/redfish"
 
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/log"
 )
 
 func init() {

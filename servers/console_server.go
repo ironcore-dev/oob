@@ -32,6 +32,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gorilla/mux"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/remotecommand"
 	kremotecommand "k8s.io/kubelet/pkg/cri/streaming/remotecommand"
@@ -39,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	computev1alpha1 "github.com/onmetal/onmetal-api/api/compute/v1alpha1"
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/log"
 )
 
 // TODO: Integrate oob-console into this codebase
@@ -47,12 +48,20 @@ import (
 //+kubebuilder:rbac:groups=compute.api.onmetal.de,resources=machines,verbs=get;list;watch
 //+kubebuilder:rbac:groups=compute.api.onmetal.de,resources=machinepools,verbs=get;list;watch
 
+func NewConsoleServer(addr string, tlsCert, tlsKey string) (*ConsoleServer, error) {
+	return &ConsoleServer{
+		addr:    addr,
+		tlsCert: tlsCert,
+		tlsKey:  tlsKey,
+	}, nil
+}
+
 // ConsoleServer serves machine consoles over the `kubectl exec` protocol
 type ConsoleServer struct {
+	addr    string
+	tlsCert string
+	tlsKey  string
 	client.Client
-	Address string
-	TLSCert string
-	TLSKey  string
 }
 
 func (s *ConsoleServer) Start(ctx context.Context) error {
@@ -64,7 +73,7 @@ func (s *ConsoleServer) Start(ctx context.Context) error {
 	defer stop()
 
 	lc := &net.ListenConfig{}
-	ln, err := lc.Listen(ctx, "tcp", s.Address)
+	ln, err := lc.Listen(ctx, "tcp", s.addr)
 	if err != nil {
 		return err
 	}
@@ -75,42 +84,41 @@ func (s *ConsoleServer) Start(ctx context.Context) error {
 
 	srv := &http.Server{
 		Handler: h,
-		BaseContext: func(listener net.Listener) context.Context {
+		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
 	}
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	var g *errgroup.Group
+	g, ctx = errgroup.WithContext(ctx)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	g.Go(func() error {
 		defer stop()
 
-		log.Info(ctx, "Listening", "bindAddr", s.Address)
-		err1 := srv.ServeTLS(ln, s.TLSCert, s.TLSKey)
+		log.Info(ctx, "Listening", "bindAddr", s.addr)
+		err1 := srv.ServeTLS(ln, s.tlsCert, s.tlsKey)
 		if err1 != nil && !errors.Is(err1, http.ErrServerClosed) {
-			log.Error(ctx, fmt.Errorf("error while running HTTPS server: %w", err))
+			return err
 		}
-	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+		return nil
+	})
 
+	g.Go(func() error {
 		<-ctx.Done()
 		log.Info(ctx, "Stopping server")
 		sdCtx, sdCancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer sdCancel()
 		err2 := srv.Shutdown(sdCtx)
 		if err2 != nil {
-			log.Error(ctx, fmt.Errorf("could not shutdown HTTPS server cleanly: %w", err))
+			return fmt.Errorf("could not shutdown HTTPS server cleanly: %w", err)
 		}
 		log.Info(ctx, "Server finished")
-	}()
 
-	return nil
+		return nil
+	})
+
+	return g.Wait()
 }
 
 func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
@@ -144,7 +152,7 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 	ctx = log.WithValues(ctx, "namespace", namespace, "machine", machineName)
 
 	var machine computev1alpha1.Machine
-	err = s.Get(ctx, types.NamespacedName{Namespace: namespace, Name: machineName}, &machine)
+	err = s.Get(ctx, client.ObjectKey{Namespace: namespace, Name: machineName}, &machine)
 	if err != nil {
 		c.err = fmt.Errorf("cannot get machine: %w", err)
 		return
@@ -155,7 +163,7 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var pool computev1alpha1.MachinePool
-	err = s.Get(ctx, types.NamespacedName{Name: machine.Spec.MachinePoolRef.Name}, &pool)
+	err = s.Get(ctx, client.ObjectKey{Name: machine.Spec.MachinePoolRef.Name}, &pool)
 	if err != nil {
 		c.err = fmt.Errorf("cannot get machine pool: %w", err)
 		return
@@ -184,10 +192,14 @@ type console struct {
 
 func (c *console) ExecInContainer(ctx context.Context, _ string, _ types.UID, _ string, _ []string, in io.Reader, out, _ io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize, _ time.Duration) error {
 	if c.err != nil {
-		return c.err
+		return logError(ctx, c.err)
 	}
+	return c.exec(ctx, in, out, tty, resize)
+}
+
+func (c *console) exec(ctx context.Context, in io.Reader, out io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize) error {
 	if !tty {
-		return fmt.Errorf("console access requires a TTY")
+		return logError(ctx, fmt.Errorf("console access requires a TTY"))
 	}
 
 	var stop context.CancelFunc
@@ -203,7 +215,7 @@ func (c *console) ExecInContainer(ctx context.Context, _ string, _ types.UID, _ 
 	log.Info(ctx, "Running console")
 	ptyf, err := pty.Start(cmd)
 	if err != nil {
-		return fmt.Errorf("cannot run command: %w", err)
+		return logError(ctx, fmt.Errorf("cannot run command: %w", err))
 	}
 	defer func() { _ = ptyf.Close() }()
 
@@ -243,6 +255,11 @@ func (c *console) ExecInContainer(ctx context.Context, _ string, _ types.UID, _ 
 	log.Info(ctx, "Console finished")
 
 	return nil
+}
+
+func logError(ctx context.Context, err error) error {
+	log.Error(ctx, err)
+	return err
 }
 
 // SetupWithManager sets up the server with the Manager.

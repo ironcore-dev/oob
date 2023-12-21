@@ -64,7 +64,7 @@ var _ = Describe("IP controller", func() {
 		Expect(k8sClient.Patch(ctx, ip, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 		Eventually(func(g Gomega, ctx SpecContext) {
 			var obj ipamv1alpha1.IP
-			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "ip"}, &obj)).To(Succeed())
+			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "ip"}, &obj)).To(Succeed())
 		}, ctx, "3s").Should(Succeed())
 	})
 
@@ -86,7 +86,7 @@ var _ = Describe("IP controller", func() {
 		})
 
 		JustBeforeEach(func(ctx SpecContext) {
-			res, err = ipReconciler.reconcile(ctx, controllerruntime.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: "ip"}})
+			res, err = ipReconciler.reconcile(ctx, controllerruntime.Request{NamespacedName: client.ObjectKey{Namespace: ns, Name: "ip"}})
 		})
 
 		When("IP does not exist", func() {
@@ -97,10 +97,10 @@ var _ = Describe("IP controller", func() {
 			JustBeforeEach(func(ctx SpecContext) {
 				Expect(k8sClient.Delete(ctx, ip)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "ip"}, ip))).To(BeTrue())
+					g.Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "ip"}, ip))).To(BeTrue())
 				}, ctx, "3s").Should(Succeed())
 
-				res, err = ipReconciler.reconcile(ctx, controllerruntime.Request{NamespacedName: types.NamespacedName{Namespace: ns, Name: "ip"}})
+				res, err = ipReconciler.reconcile(ctx, controllerruntime.Request{NamespacedName: client.ObjectKey{Namespace: ns, Name: "ip"}})
 			})
 
 			It("should do nothing", func(ctx SpecContext) {
@@ -157,7 +157,7 @@ var _ = Describe("IP controller", func() {
 				}
 				Expect(k8sClient.Patch(ctx, &oob, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
 				}, ctx, "3s").Should(Succeed())
 				oob = oobv1alpha1.OOB{
 					TypeMeta: metav1.TypeMeta{
@@ -175,7 +175,7 @@ var _ = Describe("IP controller", func() {
 				}
 				Expect(k8sClient.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
 					g.Expect(oob.Status.IP).To(Equal("1.2.3.4"))
 				}, ctx, "3s").Should(Succeed())
 				uid = oob.UID
@@ -188,7 +188,7 @@ var _ = Describe("IP controller", func() {
 
 				var oob oobv1alpha1.OOB
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob"}, &oob)).To(Succeed())
 				}, ctx, "7s").WithContext(ctx).Should(Succeed())
 				Expect(oob.UID).To(Equal(uid))
 				Expect(oob.Generation).To(Equal(generation))
@@ -202,7 +202,7 @@ var _ = Describe("IP controller", func() {
 
 				var oob oobv1alpha1.OOB
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "mac-012345abcdef"}, &oob)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "mac-012345abcdef"}, &oob)).To(Succeed())
 				}, ctx, "7s").Should(Succeed())
 				Expect(oob.Spec.Filler).NotTo(BeNil())
 				Expect(*oob.Spec.Filler).To(BeNumerically(">", 0))
@@ -250,7 +250,7 @@ var _ = Describe("IP controller", func() {
 				}
 				Expect(k8sClient.Patch(ctx, &oob0, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob0"}, &oob0)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob0"}, &oob0)).To(Succeed())
 				}, ctx, "3s").Should(Succeed())
 				oob0 = oobv1alpha1.OOB{
 					TypeMeta: metav1.TypeMeta{
@@ -268,7 +268,7 @@ var _ = Describe("IP controller", func() {
 				}
 				Expect(k8sClient.Status().Patch(ctx, &oob0, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 				Eventually(func(g Gomega, ctx SpecContext) {
-					g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob0"}, &oob0)).To(Succeed())
+					g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob0"}, &oob0)).To(Succeed())
 					g.Expect(oob0.Status.Mac).To(Equal("012345abcdef"))
 				}, ctx, "3s").Should(Succeed())
 			})
@@ -296,7 +296,7 @@ var _ = Describe("IP controller", func() {
 					time.Sleep(time.Second)
 					Expect(k8sClient.Patch(ctx, &oob1, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 					Eventually(func(g Gomega, ctx SpecContext) {
-						g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
+						g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
 					}, ctx, "3s").Should(Succeed())
 					oob1 = oobv1alpha1.OOB{
 						TypeMeta: metav1.TypeMeta{
@@ -314,7 +314,7 @@ var _ = Describe("IP controller", func() {
 					}
 					Expect(k8sClient.Status().Patch(ctx, &oob1, client.Apply, client.FieldOwner("test"), client.ForceOwnership)).To(Succeed())
 					Eventually(func(g Gomega, ctx SpecContext) {
-						g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
+						g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "oob1"}, &oob1)).To(Succeed())
 						g.Expect(oob1.Status.Mac).To(Equal("012345abcdef"))
 					}, ctx, "3s").Should(Succeed())
 				})

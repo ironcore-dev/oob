@@ -30,7 +30,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/onmetal/oob-operator/log"
+	"github.com/onmetal/oob-operator/internal/log"
 )
 
 func init() {
