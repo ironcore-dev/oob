@@ -20,7 +20,7 @@ RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secr
 COPY api/ api/
 COPY bmc/ bmc/
 COPY controllers/ controllers/
-COPY log/ log/
+COPY internal/ internal/
 COPY servers/ servers/
 COPY *.go ./
 
