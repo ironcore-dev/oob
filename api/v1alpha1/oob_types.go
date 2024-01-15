@@ -117,6 +117,8 @@ type OOBStatus struct {
 	//+optional
 	Console string `json:"console,omitempty"`
 
+	//+patchStrategy=merge
+	//+patchMergeKey=type
 	//+optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 
@@ -136,6 +138,7 @@ type OOBStatus struct {
 //+kubebuilder:printcolumn:name="MANUFACTURER",type=string,JSONPath=`.status.manufacturer`,description="Manufacturer",priority=1
 //+kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.status.type`,description="Type",priority=1
 //+kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=`.metadata.annotations['description']`,description="Description",priority=1
+// +genclient
 
 // OOB is the Schema for the oobs API
 type OOB struct {
