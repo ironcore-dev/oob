@@ -39,19 +39,23 @@ import (
 //+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips,verbs=get;list;watch
 //+kubebuilder:rbac:groups=ipam.onmetal.de,resources=ips/status,verbs=get
 
-func NewIPReconciler(namespace string) (*IPReconciler, error) {
+func NewIPReconciler(namespace string, subnetLabelName string, subnetLabelValue string) (*IPReconciler, error) {
 	return &IPReconciler{
-		namespace: namespace,
+		namespace:        namespace,
+		subnetLabelName:  subnetLabelName,
+		subnetLabelValue: subnetLabelValue,
 	}, nil
 }
 
 // IPReconciler reconciles a IP object.
 type IPReconciler struct {
 	client.Client
-	namespace   string
-	disabled    bool
-	disabledMtx sync.RWMutex
-	macRegex    *regexp.Regexp
+	namespace        string
+	subnetLabelName  string
+	subnetLabelValue string
+	disabled         bool
+	disabledMtx      sync.RWMutex
+	macRegex         *regexp.Regexp
 }
 
 func (r *IPReconciler) enable() {
@@ -268,5 +272,22 @@ func (r *IPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
-	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
+	hasValidLabelPredicate := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			if r.subnetLabelName != "" {
+				l, ok := e.Object.GetLabels()[r.subnetLabelName]
+				return ok && l == r.subnetLabelValue
+			}
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if r.subnetLabelName != "" {
+				l, ok := e.ObjectNew.GetLabels()[r.subnetLabelName]
+				return ok && l == r.subnetLabelValue
+			}
+			return true
+		},
+	}
+
+	return ctrl.NewControllerManagedBy(mgr).For(&ipamv1alpha1.IP{}).WithEventFilter(predicate.And(predicate.GenerationChangedPredicate{}, inCorrectNamespacePredicate, notBeingDeletedPredicate, validPredicate, hasValidLabelPredicate)).WithOptions(controller.Options{MaxConcurrentReconciles: 10}).Complete(r)
 }

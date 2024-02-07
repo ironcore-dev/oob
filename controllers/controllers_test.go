@@ -84,7 +84,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
 
-	ipReconciler, err = NewIPReconciler("")
+	ipReconciler, err = NewIPReconciler("", "", "")
 	Expect(err).NotTo(HaveOccurred())
 	Expect(ipReconciler.SetupWithManager(mgr)).To(Succeed())
 
