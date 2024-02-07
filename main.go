@@ -73,6 +73,8 @@ type params struct {
 	shutdownTimeout        time.Duration
 	consoleServerCert      string
 	consoleServerKey       string
+	subnetLabelName        string
+	subnetLabelValue       string
 }
 
 func parseCmdLine() params {
@@ -91,6 +93,8 @@ func parseCmdLine() params {
 	pflag.Duration("shutdown-timeout", 5*time.Minute, "Wait this long before issuing an immediate shutdown, if graceful shutdown has not succeeded. See https://golang.org/pkg/time/#ParseDuration")
 	pflag.String("console-server-cert", "", "Use a TLS certificate for the console server. If not set, do not start the console server.")
 	pflag.String("console-server-key", "", "Use a TLS key for the console server. If not set, do not start the console server.")
+	pflag.String("subnet-label-name", "", "Label name used to filter ip.ipam objects. Not specifying it will reconcile ALL ip.ipam objects.")
+	pflag.String("subnet-label-value", "", "Label value used to filter ip.ipam objects.")
 
 	var help bool
 	pflag.BoolVarP(&help, "help", "h", false, "Show this help message.")
@@ -120,6 +124,8 @@ func parseCmdLine() params {
 		shutdownTimeout:        viper.GetDuration("shutdown-timeout"),
 		consoleServerCert:      viper.GetString("console-server-cert"),
 		consoleServerKey:       viper.GetString("console-server-key"),
+		subnetLabelName:        viper.GetString("subnet-label-name"),
+		subnetLabelValue:       viper.GetString("subnet-label-value"),
 	}
 }
 
@@ -205,7 +211,7 @@ func main() {
 	}
 
 	var ipReconciler *controllers.IPReconciler
-	ipReconciler, err = controllers.NewIPReconciler(p.namespace)
+	ipReconciler, err = controllers.NewIPReconciler(p.namespace, p.subnetLabelName, p.subnetLabelValue)
 	if err != nil {
 		log.Error(ctx, fmt.Errorf("cannot create controller: %w", err), "controller", "IP")
 		exitCode = 1
