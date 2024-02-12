@@ -20,7 +20,7 @@ jobs:
       env:
         GITHUB_PAT: ${{ secrets.BOT_PAT }}
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v4
       with:
         args: --timeout=9223372036s
       timeout-minutes: 5
