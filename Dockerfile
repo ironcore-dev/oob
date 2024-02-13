@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-operator ma
 
 RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat go get github.com/onmetal/oob-console && go install github.com/onmetal/oob-console
 
-FROM debian:bookworm-20240130-slim
+FROM debian:bookworm-20240211-slim
 
 WORKDIR /
 
