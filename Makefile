@@ -40,3 +40,11 @@ install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/con
 .PHONY: uninstall
 uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	@go run sigs.k8s.io/kustomize/kustomize/v4 build config/crd | kubectl delete --ignore-not-found=true -f -
+
+.PHONY: addlicense
+addlicense: ## Add license headers to all go files.
+	find . -name '*.go' -exec go run github.com/google/addlicense -f hack/license-header.txt {} +
+
+.PHONY: checklicense
+checklicense: ## Check that every file has a license header present.
+	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
