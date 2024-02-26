@@ -39,11 +39,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	computev1alpha1 "github.com/ironcore-dev/ironcore/api/compute/v1alpha1"
+	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
+	"github.com/ironcore-dev/oob/controllers"
+	"github.com/ironcore-dev/oob/internal/log"
+	"github.com/ironcore-dev/oob/servers"
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
-	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
-	"github.com/onmetal/oob-operator/controllers"
-	"github.com/onmetal/oob-operator/internal/log"
-	"github.com/onmetal/oob-operator/servers"
 )
 
 func usage() {
@@ -198,7 +198,7 @@ func main() {
 		},
 		Scheme:                 scheme,
 		LeaderElection:         p.leaderElect,
-		LeaderElectionID:       "oob.onmetal.de",
+		LeaderElectionID:       "oob.ironcore.dev",
 		HealthProbeBindAddress: p.healthProbeBindAddress,
 		Metrics: server.Options{
 			BindAddress: p.metricsBindAddress,

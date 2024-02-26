@@ -30,7 +30,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/ironcore-dev/oob/internal/log"
 )
 
 func init() {

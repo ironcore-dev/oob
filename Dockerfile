@@ -1,4 +1,3 @@
-# Build the oob-operator binary
 FROM golang:1.22 as builder
 
 ARG TARGETARCH
@@ -24,7 +23,7 @@ COPY internal/ internal/
 COPY servers/ servers/
 COPY *.go ./
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-operator main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob main.go
 
 RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat go get github.com/onmetal/oob-console && go install github.com/onmetal/oob-console
 
@@ -37,7 +36,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER 65532:65532
-ENTRYPOINT ["/oob-operator"]
+ENTRYPOINT ["/oob"]
 
-COPY --from=builder /workspace/oob-operator .
+COPY --from=builder /workspace/oob .
 COPY --from=builder /go/bin/oob-console .
