@@ -30,7 +30,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/ironcore-dev/oob/internal/log"
 )
 
 func init() {
@@ -79,7 +79,7 @@ var fields = map[string]string{
 	"SKU":           "product_sku",
 }
 
-var namespaceForUUID = "onmetal.de"
+var namespaceForUUID = "ironcore.dev"
 
 func sshConnect(ctx context.Context, host string, port int, creds Credentials) (*ssh.Client, error) {
 	log.Debug(ctx, "Connecting via SSH", "host", host, "user", creds.Username)

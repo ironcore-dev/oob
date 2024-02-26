@@ -1,11 +1,11 @@
-temporaryPassword: "GardenerOnMetal123"
+temporaryPassword: Ironcore123
 macPrefixes:
 - macPrefix: "0894"
   protocol: Redfish
   port: 443
   defaultCredentials:
   - username: USERID
-    password: GardenerOnMetal123
+    password: Ironcore123
   console: SSH-Lenovo
   disregard: true
 ntpServers:

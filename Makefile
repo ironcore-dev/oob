@@ -31,7 +31,7 @@ test: manifests generate fmt vet ## Run tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	@go build -o oob-operator .
+	@go build -o oob .
 
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.

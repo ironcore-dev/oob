@@ -1,9 +1,9 @@
-# oob-operator
+# oob
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com) 
 [![GitHub License](https://img.shields.io/static/v1?label=License&message=Apache-2.0&color=blue&style=flat-square)](LICENSE)
 
 ## Overview
-The operator is doing a "light" lights out management of the hardware deployed in an onmetal installation.
+The operator is doing a "light" lights out management of the hardware deployed in an Ironcore installation.
 It is handling the user management, power states, identification and service data collection via/of the 
 baseboard management controllers by leveraging different industry standards and protocols (e.g. Redfish/IPMI).   
 

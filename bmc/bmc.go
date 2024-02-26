@@ -22,7 +22,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/ironcore-dev/oob/internal/log"
 )
 
 type BMC interface {

@@ -1,15 +1,15 @@
-domain: onmetal.de
+domain: ironcore.dev
 layout:
 - go.kubebuilder.io/v3
-projectName: oob-operator
-repo: github.com/onmetal/oob-operator
+projectName: oob
+repo: github.com/ironcore-dev/oob
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: onmetal.de
+  domain: ironcore.dev
   kind: OOB
-  path: github.com/onmetal/oob-operator/api/v1alpha1
+  path: github.com/ironcore-dev/oob/api/v1alpha1
   version: v1alpha1
 version: "3"

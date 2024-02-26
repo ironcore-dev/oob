@@ -14,8 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
-	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
 )
 
 var _ = Describe("IP controller", func() {

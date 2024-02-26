@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /oob-operator
+        - /oob
         args:
         - --leader-elect
         image: controller:latest

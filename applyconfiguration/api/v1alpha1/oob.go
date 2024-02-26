@@ -18,8 +18,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	apiv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
-	internal "github.com/onmetal/oob-operator/applyconfiguration/internal"
+	apiv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
+	internal "github.com/ironcore-dev/oob/applyconfiguration/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
@@ -70,7 +70,7 @@ func ExtractOOBStatus(oOB *apiv1alpha1.OOB, fieldManager string) (*OOBApplyConfi
 
 func extractOOB(oOB *apiv1alpha1.OOB, fieldManager string, subresource string) (*OOBApplyConfiguration, error) {
 	b := &OOBApplyConfiguration{}
-	err := managedfields.ExtractInto(oOB, internal.Parser().Type("com.github.onmetal.oob-operator.api.v1alpha1.OOB"), fieldManager, b, subresource)
+	err := managedfields.ExtractInto(oOB, internal.Parser().Type("com.github.ironcore-dev.oob.api.v1alpha1.OOB"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}
