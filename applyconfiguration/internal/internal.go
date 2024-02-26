@@ -38,7 +38,7 @@ func Parser() *typed.Parser {
 var parserOnce sync.Once
 var parser *typed.Parser
 var schemaYAML = typed.YAMLObject(`types:
-- name: com.github.onmetal.oob-operator.api.v1alpha1.OOB
+- name: com.github.ironcore-dev.oob.api.v1alpha1.OOB
   map:
     fields:
     - name: apiVersion
@@ -53,13 +53,13 @@ var schemaYAML = typed.YAMLObject(`types:
       default: {}
     - name: spec
       type:
-        namedType: com.github.onmetal.oob-operator.api.v1alpha1.OOBSpec
+        namedType: com.github.ironcore-dev.oob.api.v1alpha1.OOBSpec
       default: {}
     - name: status
       type:
-        namedType: com.github.onmetal.oob-operator.api.v1alpha1.OOBStatus
+        namedType: com.github.ironcore-dev.oob.api.v1alpha1.OOBStatus
       default: {}
-- name: com.github.onmetal.oob-operator.api.v1alpha1.OOBSpec
+- name: com.github.ironcore-dev.oob.api.v1alpha1.OOBSpec
   map:
     fields:
     - name: filler
@@ -74,7 +74,7 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: reset
       type:
         scalar: string
-- name: com.github.onmetal.oob-operator.api.v1alpha1.OOBStatus
+- name: com.github.ironcore-dev.oob.api.v1alpha1.OOBStatus
   map:
     fields:
     - name: capabilities
@@ -140,7 +140,7 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         list:
           elementType:
-            namedType: com.github.onmetal.oob-operator.api.v1alpha1.TagSpec
+            namedType: com.github.ironcore-dev.oob.api.v1alpha1.TagSpec
           elementRelationship: atomic
     - name: type
       type:
@@ -148,7 +148,7 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: uuid
       type:
         scalar: string
-- name: com.github.onmetal.oob-operator.api.v1alpha1.TagSpec
+- name: com.github.ironcore-dev.oob.api.v1alpha1.TagSpec
   map:
     fields:
     - name: key

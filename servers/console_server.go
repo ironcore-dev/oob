@@ -40,13 +40,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	computev1alpha1 "github.com/ironcore-dev/ironcore/api/compute/v1alpha1"
-	"github.com/onmetal/oob-operator/internal/log"
+	"github.com/ironcore-dev/oob/internal/log"
 )
 
 // TODO: Integrate oob-console into this codebase
 
-//+kubebuilder:rbac:groups=compute.api.onmetal.de,resources=machines,verbs=get;list;watch
-//+kubebuilder:rbac:groups=compute.api.onmetal.de,resources=machinepools,verbs=get;list;watch
+//+kubebuilder:rbac:groups=compute.api.ironcore.dev,resources=machines,verbs=get;list;watch
+//+kubebuilder:rbac:groups=compute.api.ironcore.dev,resources=machinepools,verbs=get;list;watch
 
 func NewConsoleServer(addr string, tlsCert, tlsKey string) (*ConsoleServer, error) {
 	return &ConsoleServer{
@@ -79,7 +79,7 @@ func (s *ConsoleServer) Start(ctx context.Context) error {
 	}
 
 	h := mux.NewRouter()
-	r := h.PathPrefix("/apis/compute.api.onmetal.de").Subrouter().Methods(http.MethodGet, http.MethodPost).Path("/namespaces/{namespace}/machines/{machine}/exec")
+	r := h.PathPrefix("/apis/compute.api.ironcore.dev").Subrouter().Methods(http.MethodGet, http.MethodPost).Path("/namespaces/{namespace}/machines/{machine}/exec")
 	r.HandlerFunc(s.serve)
 
 	srv := &http.Server{
@@ -169,15 +169,15 @@ func (s *ConsoleServer) serve(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	c.name = pool.Annotations["metal-api.onmetal.de/oob-name"]
+	c.name = pool.Annotations["metal.ironcore.dev/oob-name"]
 	if c.name == "" {
-		c.err = fmt.Errorf("machine pool does not have metal-api.onmetal.de/oob-name annotation")
+		c.err = fmt.Errorf("machine pool does not have metal.ironcore.dev/oob-name annotation")
 		return
 	}
 
-	c.namespace = pool.Annotations["metal-api.onmetal.de/oob-namespace"]
+	c.namespace = pool.Annotations["metal.ironcore.dev/oob-namespace"]
 	if c.namespace == "" {
-		c.err = fmt.Errorf("machine pool does not have metal-api.onmetal.de/oob-namespace annotation")
+		c.err = fmt.Errorf("machine pool does not have metal.ironcore.dev/oob-namespace annotation")
 		return
 	}
 

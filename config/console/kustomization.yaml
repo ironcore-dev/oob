@@ -30,7 +30,7 @@ patches:
   - target:
       group: apps
       kind: Deployment
-      name: oob-operator-controller-manager
+      name: oob-controller-manager
       namespace: system 
       version: v1
     path: args_patch.yaml

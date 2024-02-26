@@ -36,16 +36,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	oobv1alpha1 "github.com/onmetal/oob-operator/api/v1alpha1"
-	"github.com/onmetal/oob-operator/bmc"
-	"github.com/onmetal/oob-operator/internal/condition"
-	"github.com/onmetal/oob-operator/internal/log"
-	"github.com/onmetal/oob-operator/internal/rand"
+	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
+	"github.com/ironcore-dev/oob/bmc"
+	"github.com/ironcore-dev/oob/internal/condition"
+	"github.com/ironcore-dev/oob/internal/log"
+	"github.com/ironcore-dev/oob/internal/rand"
 )
 
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=onmetal.de,resources=oobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ironcore.dev,resources=oobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ironcore.dev,resources=oobs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ironcore.dev,resources=oobs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 func NewOOBReconciler(namespace string, credentialsExpBuffer, shutdownTimeout time.Duration) (*OOBReconciler, error) {
@@ -304,7 +304,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/machine"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, &oob, client.Apply, client.FieldOwner("oob.ironcore.dev/oob/machine"), client.ForceOwnership)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -316,7 +316,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		Type:   "Ready",
 		Status: "True",
 		Reason: "Ready",
-	}, "oob-operator.onmetal.de/oob")
+	}, "oob.ironcore.dev/oob")
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -341,7 +341,7 @@ func (r *OOBReconciler) reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB")
-		err = r.Patch(ctx, &oob, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+		err = r.Patch(ctx, &oob, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("cannot apply OOB: %w", err)
 		}
@@ -357,7 +357,7 @@ func (r *OOBReconciler) applyErrorCondition(ctx context.Context, oob *oobv1alpha
 		Status:  "False",
 		Reason:  "Error",
 		Message: msgErr.Error(),
-	}, "oob-operator.onmetal.de/oob")
+	}, "oob.ironcore.dev/oob")
 }
 
 func (r *OOBReconciler) applyCondition(ctx context.Context, oob *oobv1alpha1.OOB, cond metav1.Condition, owner client.FieldOwner) error {
@@ -437,7 +437,7 @@ func (r *OOBReconciler) clearNoneFields(ctx context.Context, oob *oobv1alpha1.OO
 
 	// Apply the OOB
 	log.Info(ctx, "Applying OOB")
-	err := r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+	err := r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 	if err != nil {
 		return false, fmt.Errorf("cannot apply OOB: %w", err)
 	}
@@ -467,7 +467,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				Type:   "Ready",
 				Status: "False",
 				Reason: "Unknown",
-			}, "oob-operator.onmetal.de/oob")
+			}, "oob.ironcore.dev/oob")
 			if err != nil {
 				return nil, false, nil, err
 			}
@@ -486,13 +486,13 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:   oob.Namespace,
 					Name:        oob.Name,
-					Annotations: map[string]string{"oob-operator.onmetal.de/disregard": "true"},
+					Annotations: map[string]string{"oob.ironcore.dev/disregard": "true"},
 				},
 			}
 
 			// Apply the OOB
 			log.Info(ctx, "Applying OOB")
-			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 			if err != nil {
 				return nil, false, nil, fmt.Errorf("cannot apply OOB: %w", err)
 			}
@@ -503,7 +503,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 				Type:   "Ready",
 				Status: "False",
 				Reason: "Disregarded",
-			}, "oob-operator.onmetal.de/oob")
+			}, "oob.ironcore.dev/oob")
 			if err != nil {
 				return nil, false, nil, err
 			}
@@ -515,7 +515,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 			Type:   "Ready",
 			Status: "False",
 			Reason: "SettingUp",
-		}, "oob-operator.onmetal.de/oob")
+		}, "oob.ironcore.dev/oob")
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -549,7 +549,7 @@ func (r *OOBReconciler) ensureGoodCredentials(ctx context.Context, oob *oobv1alp
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/proto"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob.ironcore.dev/oob/proto"), client.ForceOwnership)
 		if err != nil {
 			return nil, false, nil, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -741,7 +741,7 @@ func (r *OOBReconciler) persistCredentials(ctx context.Context, oob *oobv1alpha1
 
 	// Apply the secret
 	log.Info(ctx, "Applying credentials secret")
-	err := r.Patch(ctx, secret, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/creds"), client.ForceOwnership)
+	err := r.Patch(ctx, secret, client.Apply, client.FieldOwner("oob.ironcore.dev/creds"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply secret: %w", err)
 	}
@@ -765,7 +765,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 				Type:   "Ready",
 				Status: "False",
 				Reason: "AdoptedSpec",
-			}, "oob-operator.onmetal.de/oob")
+			}, "oob.ironcore.dev/oob")
 			if err != nil {
 				return false, err
 			}
@@ -791,7 +791,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 			}
 			gen := oob.Generation
 			log.Info(ctx, "Applying OOB")
-			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+			err = r.Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 			if err != nil {
 				return false, fmt.Errorf("cannot apply OOB: %w", err)
 			}
@@ -818,7 +818,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 
 		// Apply the OOB
 		log.Info(ctx, "Applying OOB status")
-		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob/uuid"), client.ForceOwnership)
+		err = r.Status().Patch(ctx, oobNext, client.Apply, client.FieldOwner("oob.ironcore.dev/oob/uuid"), client.ForceOwnership)
 		if err != nil {
 			return false, fmt.Errorf("cannot apply OOB status: %w", err)
 		}
@@ -829,7 +829,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 			Type:   "Ready",
 			Status: "False",
 			Reason: "NewUUID",
-		}, "oob-operator.onmetal.de/oob")
+		}, "oob.ironcore.dev/oob")
 		if err != nil {
 			return false, err
 		}
@@ -844,7 +844,7 @@ func (r *OOBReconciler) ensureCorrectUUIDandName(ctx context.Context, oob *oobv1
 			Type:   "Ready",
 			Status: "False",
 			Reason: "ToBeReplaced",
-		}, "oob-operator.onmetal.de/oob")
+		}, "oob.ironcore.dev/oob")
 		if err != nil {
 			return false, err
 		}
@@ -913,7 +913,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   oob.Namespace,
 			Name:        name,
-			Annotations: map[string]string{"oob-operator.onmetal.de/ignore": "true"},
+			Annotations: map[string]string{"oob.ironcore.dev/ignore": "true"},
 		},
 	}
 	oob.Spec.DeepCopyInto(&oobRepl.Spec)
@@ -921,7 +921,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the new OOB
 	log.Info(ctx, "Applying OOB under its correct name")
-	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB: %w", err)
 	}
@@ -941,7 +941,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the status
 	log.Info(ctx, "Applying OOB status")
-	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+	err = r.Status().Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB status: %w", err)
 	}
@@ -950,7 +950,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 	log.Info(ctx, "Patching OOB")
 	oobPatch := oobRepl.DeepCopy()
 	oobPatch.ManagedFields = append(oob.ManagedFields, metav1.ManagedFieldsEntry{
-		Manager:    "oob-operator.onmetal.de/oob",
+		Manager:    "oob.ironcore.dev/oob",
 		Operation:  "Apply",
 		APIVersion: oobv1alpha1.GroupVersion.String(),
 		Time: &metav1.Time{
@@ -958,7 +958,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 		},
 		FieldsType: "FieldsV1",
 		FieldsV1: &metav1.FieldsV1{
-			Raw: []byte(`{"f:metadata":{"f:annotations":{"f:oob-operator.onmetal.de/ignore":{}}}}`),
+			Raw: []byte(`{"f:metadata":{"f:annotations":{"f:oob.ironcore.dev/ignore":{}}}}`),
 		},
 	})
 	err = r.Patch(ctx, oobPatch, client.MergeFrom(oobRepl))
@@ -971,7 +971,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 		Type:   "Ready",
 		Status: "False",
 		Reason: "SettingUp",
-	}, "oob-operator.onmetal.de/oob")
+	}, "oob.ironcore.dev/oob")
 	if err != nil {
 		return err
 	}
@@ -993,7 +993,7 @@ func (r *OOBReconciler) replaceOOB(ctx context.Context, oob *oobv1alpha1.OOB, na
 
 	// Apply the new OOB
 	log.Info(ctx, "Applying OOB")
-	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob-operator.onmetal.de/oob"), client.ForceOwnership)
+	err = r.Patch(ctx, oobRepl, client.Apply, client.FieldOwner("oob.ironcore.dev/oob"), client.ForceOwnership)
 	if err != nil {
 		return fmt.Errorf("cannot apply OOB: %w", err)
 	}
@@ -1381,22 +1381,22 @@ func (r *OOBReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	notIgnoredPredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			ignore, ok := e.Object.GetAnnotations()["oob-operator.onmetal.de/ignore"]
+			ignore, ok := e.Object.GetAnnotations()["oob.ironcore.dev/ignore"]
 			return !(ok && ignore == "true")
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			ignore, ok := e.ObjectNew.GetAnnotations()["oob-operator.onmetal.de/ignore"]
+			ignore, ok := e.ObjectNew.GetAnnotations()["oob.ironcore.dev/ignore"]
 			return !(ok && ignore == "true")
 		},
 	}
 
 	notDisregardedPredicate := predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			disregard, ok := e.Object.GetAnnotations()["oob-operator.onmetal.de/disregard"]
+			disregard, ok := e.Object.GetAnnotations()["oob.ironcore.dev/disregard"]
 			return !(ok && disregard == "true")
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			disregard, ok := e.ObjectNew.GetAnnotations()["oob-operator.onmetal.de/disregard"]
+			disregard, ok := e.ObjectNew.GetAnnotations()["oob.ironcore.dev/disregard"]
 			return !(ok && disregard == "true")
 		},
 	}

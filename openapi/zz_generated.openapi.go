@@ -31,11 +31,11 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/onmetal/oob-operator/api/v1alpha1.OOB":               schema_onmetal_oob_operator_api_v1alpha1_OOB(ref),
-		"github.com/onmetal/oob-operator/api/v1alpha1.OOBList":           schema_onmetal_oob_operator_api_v1alpha1_OOBList(ref),
-		"github.com/onmetal/oob-operator/api/v1alpha1.OOBSpec":           schema_onmetal_oob_operator_api_v1alpha1_OOBSpec(ref),
-		"github.com/onmetal/oob-operator/api/v1alpha1.OOBStatus":         schema_onmetal_oob_operator_api_v1alpha1_OOBStatus(ref),
-		"github.com/onmetal/oob-operator/api/v1alpha1.TagSpec":           schema_onmetal_oob_operator_api_v1alpha1_TagSpec(ref),
+		"github.com/ironcore-dev/oob/api/v1alpha1.OOB":                   schema_ironcore_dev_oob_api_v1alpha1_OOB(ref),
+		"github.com/ironcore-dev/oob/api/v1alpha1.OOBList":               schema_ironcore_dev_oob_api_v1alpha1_OOBList(ref),
+		"github.com/ironcore-dev/oob/api/v1alpha1.OOBSpec":               schema_ironcore_dev_oob_api_v1alpha1_OOBSpec(ref),
+		"github.com/ironcore-dev/oob/api/v1alpha1.OOBStatus":             schema_ironcore_dev_oob_api_v1alpha1_OOBStatus(ref),
+		"github.com/ironcore-dev/oob/api/v1alpha1.TagSpec":               schema_ironcore_dev_oob_api_v1alpha1_TagSpec(ref),
 		"k8s.io/api/core/v1.AWSElasticBlockStoreVolumeSource":            schema_k8sio_api_core_v1_AWSElasticBlockStoreVolumeSource(ref),
 		"k8s.io/api/core/v1.Affinity":                                    schema_k8sio_api_core_v1_Affinity(ref),
 		"k8s.io/api/core/v1.AttachedVolume":                              schema_k8sio_api_core_v1_AttachedVolume(ref),
@@ -310,7 +310,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
-func schema_onmetal_oob_operator_api_v1alpha1_OOB(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_ironcore_dev_oob_api_v1alpha1_OOB(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -340,24 +340,24 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOB(ref common.ReferenceCallback) 
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/onmetal/oob-operator/api/v1alpha1.OOBSpec"),
+							Ref:     ref("github.com/ironcore-dev/oob/api/v1alpha1.OOBSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/onmetal/oob-operator/api/v1alpha1.OOBStatus"),
+							Ref:     ref("github.com/ironcore-dev/oob/api/v1alpha1.OOBStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/onmetal/oob-operator/api/v1alpha1.OOBSpec", "github.com/onmetal/oob-operator/api/v1alpha1.OOBStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/ironcore-dev/oob/api/v1alpha1.OOBSpec", "github.com/ironcore-dev/oob/api/v1alpha1.OOBStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_onmetal_oob_operator_api_v1alpha1_OOBList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_ironcore_dev_oob_api_v1alpha1_OOBList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -391,7 +391,7 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOBList(ref common.ReferenceCallba
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/onmetal/oob-operator/api/v1alpha1.OOB"),
+										Ref:     ref("github.com/ironcore-dev/oob/api/v1alpha1.OOB"),
 									},
 								},
 							},
@@ -402,11 +402,11 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOBList(ref common.ReferenceCallba
 			},
 		},
 		Dependencies: []string{
-			"github.com/onmetal/oob-operator/api/v1alpha1.OOB", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/ironcore-dev/oob/api/v1alpha1.OOB", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
-func schema_onmetal_oob_operator_api_v1alpha1_OOBSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_ironcore_dev_oob_api_v1alpha1_OOBSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -443,7 +443,7 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOBSpec(ref common.ReferenceCallba
 	}
 }
 
-func schema_onmetal_oob_operator_api_v1alpha1_OOBStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_ironcore_dev_oob_api_v1alpha1_OOBStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -481,7 +481,7 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOBStatus(ref common.ReferenceCall
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/onmetal/oob-operator/api/v1alpha1.TagSpec"),
+										Ref:     ref("github.com/ironcore-dev/oob/api/v1alpha1.TagSpec"),
 									},
 								},
 							},
@@ -600,11 +600,11 @@ func schema_onmetal_oob_operator_api_v1alpha1_OOBStatus(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/onmetal/oob-operator/api/v1alpha1.TagSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+			"github.com/ironcore-dev/oob/api/v1alpha1.TagSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
-func schema_onmetal_oob_operator_api_v1alpha1_TagSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_ironcore_dev_oob_api_v1alpha1_TagSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -6686,6 +6686,7 @@ func schema_k8sio_api_core_v1_PersistentVolumeClaimSpec(ref common.ReferenceCall
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"},
 									},
 								},
 							},
@@ -6778,6 +6779,7 @@ func schema_k8sio_api_core_v1_PersistentVolumeClaimStatus(ref common.ReferenceCa
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"},
 									},
 								},
 							},
@@ -6847,6 +6849,7 @@ func schema_k8sio_api_core_v1_PersistentVolumeClaimStatus(ref common.ReferenceCa
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"ControllerResizeFailed", "ControllerResizeInProgress", "NodeResizeFailed", "NodeResizeInProgress", "NodeResizePending"},
 									},
 								},
 							},
@@ -7293,6 +7296,7 @@ func schema_k8sio_api_core_v1_PersistentVolumeSpec(ref common.ReferenceCallback)
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"ReadOnlyMany", "ReadWriteMany", "ReadWriteOnce", "ReadWriteOncePod"},
 									},
 								},
 							},
@@ -7399,7 +7403,7 @@ func schema_k8sio_api_core_v1_PersistentVolumeStatus(ref common.ReferenceCallbac
 					},
 					"lastPhaseTransitionTime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "lastPhaseTransitionTime is the time the phase transitioned from one to another and automatically resets to current time everytime a volume phase transitions. This is an alpha field and requires enabling PersistentVolumeLastPhaseTransitionTime feature.",
+							Description: "lastPhaseTransitionTime is the time the phase transitioned from one to another and automatically resets to current time everytime a volume phase transitions. This is a beta field and requires the PersistentVolumeLastPhaseTransitionTime feature to be enabled (enabled by default).",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -10308,6 +10312,7 @@ func schema_k8sio_api_core_v1_ResourceQuotaSpec(ref common.ReferenceCallback) co
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"BestEffort", "CrossNamespacePodAffinity", "NotBestEffort", "NotTerminating", "PriorityClass", "Terminating"},
 									},
 								},
 							},
@@ -11724,10 +11729,10 @@ func schema_k8sio_api_core_v1_ServiceSpec(ref common.ReferenceCallback) common.O
 					},
 					"externalTrafficPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "externalTrafficPolicy describes how nodes distribute service traffic they receive on one of the Service's \"externally-facing\" addresses (NodePorts, ExternalIPs, and LoadBalancer IPs). If set to \"Local\", the proxy will configure the service in a way that assumes that external load balancers will take care of balancing the service traffic between nodes, and so each node will deliver traffic only to the node-local endpoints of the service, without masquerading the client source IP. (Traffic mistakenly sent to a node with no endpoints will be dropped.) The default value, \"Cluster\", uses the standard behavior of routing to all endpoints evenly (possibly modified by topology and other features). Note that traffic sent to an External IP or LoadBalancer IP from within the cluster will always get \"Cluster\" semantics, but clients sending to a NodePort from within the cluster may need to take traffic policy into account when picking a node.\n\nPossible enum values:\n - `\"Cluster\"`\n - `\"Cluster\"` routes traffic to all endpoints.\n - `\"Local\"`\n - `\"Local\"` preserves the source IP of the traffic by routing only to endpoints on the same node as the traffic was received on (dropping the traffic if there are no local endpoints).",
+							Description: "externalTrafficPolicy describes how nodes distribute service traffic they receive on one of the Service's \"externally-facing\" addresses (NodePorts, ExternalIPs, and LoadBalancer IPs). If set to \"Local\", the proxy will configure the service in a way that assumes that external load balancers will take care of balancing the service traffic between nodes, and so each node will deliver traffic only to the node-local endpoints of the service, without masquerading the client source IP. (Traffic mistakenly sent to a node with no endpoints will be dropped.) The default value, \"Cluster\", uses the standard behavior of routing to all endpoints evenly (possibly modified by topology and other features). Note that traffic sent to an External IP or LoadBalancer IP from within the cluster will always get \"Cluster\" semantics, but clients sending to a NodePort from within the cluster may need to take traffic policy into account when picking a node.\n\nPossible enum values:\n - `\"Cluster\"`\n - `\"Local\"`",
 							Type:        []string{"string"},
 							Format:      "",
-							Enum:        []interface{}{"Cluster", "Cluster", "Local", "Local"},
+							Enum:        []interface{}{"Cluster", "Local"},
 						},
 					},
 					"healthCheckNodePort": {
@@ -11765,6 +11770,7 @@ func schema_k8sio_api_core_v1_ServiceSpec(ref common.ReferenceCallback) common.O
 										Default: "",
 										Type:    []string{"string"},
 										Format:  "",
+										Enum:    []interface{}{"", "IPv4", "IPv6"},
 									},
 								},
 							},
