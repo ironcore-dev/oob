@@ -43,7 +43,7 @@ var _ = Describe("IP controller", func() {
 	BeforeEach(func() {
 		ip = &ipamv1alpha1.IP{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: ipamv1alpha1.GroupVersion.String(),
+				APIVersion: ipamv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "IP",
 			},
 			ObjectMeta: metav1.ObjectMeta{
