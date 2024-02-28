@@ -25,9 +25,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/v1alpha1"
 	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
 	"github.com/ironcore-dev/oob/internal/log"
-	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 )
 
 var (
