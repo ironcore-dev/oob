@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/v1alpha1"
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
 	"github.com/ironcore-dev/oob/internal/condition"
 	"github.com/ironcore-dev/oob/internal/log"
