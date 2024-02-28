@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/ironcore-dev/ipam v0.0.26
+	github.com/ironcore-dev/ipam v0.0.30
 	github.com/ironcore-dev/ironcore v0.1.2-0.20240222224633-e553da0ae687
 	github.com/ironcore-dev/vgopath v0.1.4
 	github.com/onsi/ginkgo/v2 v2.15.0
