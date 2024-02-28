@@ -16,6 +16,9 @@ on:
     paths-ignore:
     - 'docs/**'
     - '**/*.md'
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   buildAndPush:
