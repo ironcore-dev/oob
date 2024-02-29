@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
-	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 )
 
 var _ = Describe("IP controller", func() {
@@ -43,7 +43,7 @@ var _ = Describe("IP controller", func() {
 	BeforeEach(func() {
 		ip = &ipamv1alpha1.IP{
 			TypeMeta: metav1.TypeMeta{
-				APIVersion: ipamv1alpha1.GroupVersion.String(),
+				APIVersion: ipamv1alpha1.SchemeGroupVersion.String(),
 				Kind:       "IP",
 			},
 			ObjectMeta: metav1.ObjectMeta{

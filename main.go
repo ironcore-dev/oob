@@ -25,12 +25,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	computev1alpha1 "github.com/ironcore-dev/ironcore/api/compute/v1alpha1"
 	oobv1alpha1 "github.com/ironcore-dev/oob/api/v1alpha1"
 	"github.com/ironcore-dev/oob/controllers"
 	"github.com/ironcore-dev/oob/internal/log"
 	"github.com/ironcore-dev/oob/servers"
-	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 )
 
 func usage() {

@@ -70,5 +70,3 @@ jobs:
         platforms: ${{env.platforms}}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        secrets: |
-          "github_pat=${{ secrets.BOT_PAT }}"
