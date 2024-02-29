@@ -115,12 +115,13 @@ func getConsoleSpec(ctx context.Context, clients k8sClients, namespace, name str
 		return consoleSpec{}, fmt.Errorf("secret has incorrect type: %s", secret.Type)
 	}
 
-	mac, _ := secret.Data["mac"]
-	if string(mac) != oob.Status.Mac {
+	mac, ok := secret.Data["mac"]
+	if !ok || string(mac) != oob.Status.Mac {
 		return consoleSpec{}, fmt.Errorf("secret has incorrect MAC address")
 	}
 
-	user, ok := secret.Data["username"]
+	var user []byte
+	user, ok = secret.Data["username"]
 	if !ok {
 		return consoleSpec{}, fmt.Errorf("secret has no username")
 	}
