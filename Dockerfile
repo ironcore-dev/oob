@@ -1,31 +1,21 @@
 FROM golang:1.22 as builder
 
 ARG TARGETARCH
-
-WORKDIR /workspace
-
-ENV GOPRIVATE='github.com/onmetal/*'
-COPY hack/setup-git-redirect.sh hack/
+WORKDIR /oob
 
 COPY go.mod go.mod
 COPY go.sum go.sum
-
-RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat \
-    hack/setup-git-redirect.sh && \
-    mkdir -p -m 0600 ~/.ssh && \
-    ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts && \
-    go mod download
+RUN go mod download
 
 COPY api/ api/
 COPY bmc/ bmc/
+COPY console/ console/
 COPY controllers/ controllers/
 COPY internal/ internal/
 COPY servers/ servers/
 COPY *.go ./
-
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob main.go
-
-RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat go get github.com/onmetal/oob-console && go install github.com/onmetal/oob-console
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-console console/main.go
 
 FROM debian:bookworm-20240211-slim
 
@@ -38,5 +28,5 @@ RUN apt-get update && \
 USER 65532:65532
 ENTRYPOINT ["/oob"]
 
-COPY --from=builder /workspace/oob .
-COPY --from=builder /go/bin/oob-console .
+COPY --from=builder /oob/oob .
+COPY --from=builder /oob/oob-console .
