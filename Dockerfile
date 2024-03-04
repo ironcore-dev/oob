@@ -15,7 +15,7 @@ COPY internal/ internal/
 COPY servers/ servers/
 COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob main.go
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-console console/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-console ./console
 
 FROM debian:bookworm-20240211-slim
 
