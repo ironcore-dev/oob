@@ -4,17 +4,18 @@ on:
   push:
     branches:
     - main
-  pull_request:
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  update_release_draft:
+  release-drafter:
+    name: Draft release
     runs-on: ubuntu-latest
     steps:
-    - uses: release-drafter/release-drafter@v6
+    - name: Draft release
+      uses: release-drafter/release-drafter@v6
       with:
         disable-releaser: github.ref != 'refs/heads/main'
         config-name: release-drafter.yml

@@ -1,4 +1,4 @@
-FROM golang:1.22 as builder
+FROM golang:1.22.1 as builder
 
 ARG TARGETARCH
 WORKDIR /oob
