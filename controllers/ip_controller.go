@@ -23,8 +23,8 @@ import (
 	"github.com/ironcore-dev/oob/internal/rand"
 )
 
-//+kubebuilder:rbac:groups=ipam.ironcore.dev,resources=ips,verbs=get;list;watch
-//+kubebuilder:rbac:groups=ipam.ironcore.dev,resources=ips/status,verbs=get
+//+kubebuilder:rbac:groups=ipam.metal.ironcore.dev,resources=ips,verbs=get;list;watch
+//+kubebuilder:rbac:groups=ipam.metal.ironcore.dev,resources=ips/status,verbs=get
 
 func NewIPReconciler(namespace string, subnetLabelName string, subnetLabelValue string) (*IPReconciler, error) {
 	return &IPReconciler{
