@@ -64,7 +64,7 @@ var _ = BeforeSuite(func() {
 	//+kubebuilder:scaffold:scheme
 
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases"), filepath.Join("..", "test", "ipam.ironcore.dev_ips.yaml")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases"), filepath.Join("..", "test", "ipam.metal.ironcore.dev_ips.yaml")},
 		ErrorIfCRDPathMissing: true,
 	}
 	var cfg *rest.Config
