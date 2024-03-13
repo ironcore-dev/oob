@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 jobs:
-  publish_docker:
+  publish-docker:
     name: Build and publish Docker image
     runs-on: ubuntu-latest
     steps:
@@ -43,7 +43,7 @@ jobs:
       uses: docker/setup-qemu-action@v3
       with:
         image: tonistiigi/binfmt:latest
-        platforms: ${{env.platforms}}
+        platforms: ${{ env.platforms }}
     - name: Set up Docker Buildx context
       run: |
         docker context create builders
@@ -64,7 +64,7 @@ jobs:
       timeout-minutes: 60
       with:
         context: .
-        platforms: ${{env.platforms}}
+        platforms: ${{ env.platforms }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         push: true
