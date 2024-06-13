@@ -17,7 +17,7 @@ COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob main.go
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -a -o oob-console ./console
 
-FROM debian:bookworm-20240513-slim
+FROM debian:bookworm-20240612-slim
 
 WORKDIR /
 
